@@ -2,10 +2,10 @@ import { useMemo, useState } from 'react'
 import { Plus, Users, Lock } from 'lucide-react'
 import { useTrip } from '@/context/TripContext'
 import PageHeader from '@/components/layout/PageHeader'
-import { PackingItemRow, CategoryFilter, VisibilityFilter } from '@/components/packing/PackingItemRow'
-import type { PackingCategory, PackingItem, PackingVisibility } from '@/types'
+import { PackingItemRow } from '@/components/packing/PackingItemRow'
+import type { PackingItem, PackingVisibility } from '@/types'
 
-type ListView = 'all' | PackingVisibility
+type ListTab = PackingVisibility
 
 function sortItems(items: PackingItem[]) {
   return [...items].sort((a, b) => {
@@ -14,6 +14,11 @@ function sortItems(items: PackingItem[]) {
     if (orderDiff !== 0) return orderDiff
     return a.label.localeCompare(b.label)
   })
+}
+
+function actionError(err: unknown): string {
+  if (err instanceof Error && err.message) return err.message
+  return 'Something went wrong — try again.'
 }
 
 export default function PackingPage() {
@@ -27,117 +32,47 @@ export default function PackingPage() {
     assignItem,
     addItem,
     removeItem,
-    reorderItems,
   } = useTrip()
-  const [category, setCategory] = useState<PackingCategory | 'all'>('all')
-  const [listView, setListView] = useState<ListView>('all')
-  const [showAdd, setShowAdd] = useState(false)
+  const [tab, setTab] = useState<ListTab>('shared')
   const [newLabel, setNewLabel] = useState('')
-  const [newCategory, setNewCategory] = useState<PackingCategory>('misc')
-  const [newVisibility, setNewVisibility] = useState<PackingVisibility>('shared')
+  const [adding, setAdding] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const canReorderList = category === 'all'
-
-  const byCategory = useMemo(() => {
-    if (category === 'all') return packingItems
-    return packingItems.filter((p) => p.category === category)
-  }, [packingItems, category])
-
-  const sharedItems = useMemo(
-    () => sortItems(byCategory.filter((p) => p.visibility === 'shared')),
-    [byCategory],
+  const visibleItems = useMemo(
+    () => sortItems(packingItems.filter((p) => p.visibility === tab)),
+    [packingItems, tab],
   )
-  const privateItems = useMemo(
-    () => sortItems(byCategory.filter((p) => p.visibility === 'private')),
-    [byCategory],
-  )
-
-  const visibleItems = listView === 'all' ? byCategory : listView === 'shared' ? sharedItems : privateItems
   const packedCount = visibleItems.filter((p) => p.is_packed).length
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newLabel.trim()) return
+    const trimmed = newLabel.trim()
+    if (!trimmed || adding) return
+    setError(null)
+    setAdding(true)
     try {
-      await addItem(newLabel.trim(), newCategory, newVisibility)
+      await addItem(trimmed, 'misc', tab)
       setNewLabel('')
-      setNewVisibility('shared')
-      setShowAdd(false)
-    } catch {
-      window.alert('Could not add item — try again.')
+    } catch (err) {
+      setError(actionError(err))
+    } finally {
+      setAdding(false)
     }
   }
 
-  const handleMove = async (items: PackingItem[], index: number, direction: 'up' | 'down') => {
-    const target = direction === 'up' ? index - 1 : index + 1
-    if (target < 0 || target >= items.length) return
-    const next = [...items]
-    ;[next[index], next[target]] = [next[target], next[index]]
+  const runAction = async (fn: () => Promise<void>) => {
+    setError(null)
     try {
-      await reorderItems(next.map((item) => item.id))
-    } catch {
-      window.alert('Could not reorder — try again.')
+      await fn()
+    } catch (err) {
+      setError(actionError(err))
     }
   }
 
-  const renderItems = (items: PackingItem[], options: { canReorder: boolean }) =>
-    items.map((item, index) => {
-      const assigned = members.find((m) => m.id === item.assigned_member_id)
-      const isPrivate = item.visibility === 'private'
-      const isCreator = item.created_by_member_id === member?.id
-      const canDelete = isPrivate ? isCreator || isOrganizer : true
-
-      return (
-        <PackingItemRow
-          key={item.id}
-          id={item.id}
-          label={item.label}
-          category={item.category}
-          isPacked={item.is_packed}
-          isPrivate={isPrivate}
-          assignedName={assigned?.display_name}
-          canAssign={!isPrivate}
-          canDelete={canDelete}
-          canReorder={options.canReorder}
-          isFirst={index === 0}
-          isLast={index === items.length - 1}
-          deleteLabel={
-            isPrivate
-              ? 'Remove this private item?'
-              : 'Remove this from the group list?'
-          }
-          onToggle={async () => {
-            try {
-              await packItem(item.id, !item.is_packed)
-            } catch {
-              window.alert('Could not update item — try again.')
-            }
-          }}
-          onAssign={async () => {
-            try {
-              await assignItem(
-                item.id,
-                item.assigned_member_id === member?.id ? null : member?.id ?? null,
-              )
-            } catch {
-              window.alert('Could not assign item — try again.')
-            }
-          }}
-          onDelete={async () => {
-            try {
-              await removeItem(item.id)
-            } catch {
-              window.alert('Could not remove item — try again.')
-            }
-          }}
-          onMoveUp={() => void handleMove(items, index, 'up')}
-          onMoveDown={() => void handleMove(items, index, 'down')}
-        />
-      )
-    })
-
-  const showSharedSection = listView !== 'private' && sharedItems.length > 0
-  const showPrivateSection = listView !== 'shared' && privateItems.length > 0
+  const tabs: { id: ListTab; label: string; icon: typeof Users }[] = [
+    { id: 'shared', label: 'Group', icon: Users },
+    { id: 'private', label: 'Mine', icon: Lock },
+  ]
 
   return (
     <div className="page-container">
@@ -146,124 +81,111 @@ export default function PackingPage() {
         subtitle={
           loading
             ? 'Loading…'
-            : `${packedCount}/${visibleItems.length} packed${canReorderList ? ' · use arrows to reorder' : ''}`
+            : `${packedCount}/${visibleItems.length} packed`
         }
       />
 
-      <div className="space-y-2 px-4">
-        <VisibilityFilter active={listView} onChange={setListView} />
-        <CategoryFilter active={category} onChange={setCategory} />
+      <div className="px-4 pb-2">
+        <div className="flex rounded-xl border border-white/60 bg-white/40 p-1">
+          {tabs.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => {
+                setTab(id)
+                setError(null)
+              }}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-colors ${
+                tab === id ? 'text-white shadow-sm' : 'text-[var(--palette-text-muted)]'
+              }`}
+              style={tab === id ? { background: 'var(--palette-accent)' } : undefined}
+            >
+              <Icon size={14} />
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="scroll-content space-y-4">
+        <form onSubmit={(e) => void handleAdd(e)} className="flex gap-2">
+          <input
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+            placeholder={tab === 'shared' ? 'Add for the group…' : 'Add to your list…'}
+            disabled={adding}
+            className="min-w-0 flex-1 rounded-xl border border-white/60 bg-white/50 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[var(--palette-accent)] disabled:opacity-50"
+          />
+          <button
+            type="submit"
+            disabled={!newLabel.trim() || adding}
+            className="btn-primary flex shrink-0 items-center gap-1 px-4 py-2.5 text-sm disabled:opacity-50"
+          >
+            <Plus size={16} />
+            Add
+          </button>
+        </form>
+
+        {error && (
+          <p className="rounded-xl border border-red-200/80 bg-red-50/80 px-3 py-2 text-xs text-red-700">
+            {error}
+          </p>
+        )}
+
         {loading ? (
           <p className="py-8 text-center text-sm text-[var(--palette-text-muted)]">Loading packing list…</p>
         ) : visibleItems.length === 0 ? (
           <div className="glass-card p-6 text-center">
             <p className="text-sm font-medium text-[var(--palette-text)]">Nothing here yet</p>
             <p className="mt-1 text-xs text-[var(--palette-text-muted)]">
-              {listView === 'private'
-                ? 'Add a private item only you will see.'
-                : 'Add shared gear for the group or keep personal items private.'}
+              {tab === 'private'
+                ? 'Your personal packing list — only you can see these items.'
+                : 'Add shared gear the whole group can see and claim.'}
             </p>
           </div>
-        ) : listView === 'all' ? (
-          <>
-            {showSharedSection && (
-              <section className="space-y-2">
-                <h3 className="flex items-center gap-1.5 px-1 text-[10px] font-semibold uppercase tracking-widest text-[var(--palette-text-muted)]">
-                  <Users size={12} />
-                  Group list
-                </h3>
-                {renderItems(sharedItems, { canReorder: canReorderList })}
-              </section>
-            )}
-            {showPrivateSection && (
-              <section className="space-y-2">
-                <h3 className="flex items-center gap-1.5 px-1 text-[10px] font-semibold uppercase tracking-widest text-[var(--palette-text-muted)]">
-                  <Lock size={12} />
-                  Just mine
-                </h3>
-                {renderItems(privateItems, { canReorder: canReorderList })}
-              </section>
-            )}
-          </>
         ) : (
           <div className="space-y-2">
-            {renderItems(
-              listView === 'shared' ? sharedItems : privateItems,
-              { canReorder: canReorderList },
-            )}
+            {visibleItems.map((item) => {
+              const assigned = members.find((m) => m.id === item.assigned_member_id)
+              const isPrivate = item.visibility === 'private'
+              const isCreator = item.created_by_member_id === member?.id
+              const assignedToMe = item.assigned_member_id === member?.id
+              const canDelete = isPrivate ? isCreator || isOrganizer : true
+              const canClaim = tab === 'shared' && !item.assigned_member_id
+
+              return (
+                <PackingItemRow
+                  key={item.id}
+                  label={item.label}
+                  isPacked={item.is_packed}
+                  isPrivate={isPrivate}
+                  assignedName={assigned?.display_name}
+                  assignedToMe={assignedToMe}
+                  canClaim={canClaim}
+                  canDelete={canDelete}
+                  deleteLabel={
+                    isPrivate
+                      ? 'Remove this private item?'
+                      : 'Remove this from the group list?'
+                  }
+                  onToggle={() =>
+                    void runAction(() => packItem(item.id, !item.is_packed))
+                  }
+                  onClaim={
+                    tab === 'shared'
+                      ? () => void runAction(() => assignItem(item.id, member?.id ?? null))
+                      : undefined
+                  }
+                  onUnclaim={
+                    assignedToMe
+                      ? () => void runAction(() => assignItem(item.id, null))
+                      : undefined
+                  }
+                  onDelete={() => void runAction(() => removeItem(item.id))}
+                />
+              )
+            })}
           </div>
-        )}
-
-        {showAdd ? (
-          <form onSubmit={(e) => void handleAdd(e)} className="glass-card space-y-3 p-4">
-            <input
-              value={newLabel}
-              onChange={(e) => setNewLabel(e.target.value)}
-              placeholder="What to pack?"
-              className="w-full rounded-xl border border-white/60 bg-white/50 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[var(--palette-accent)]"
-            />
-            <select
-              value={newCategory}
-              onChange={(e) => setNewCategory(e.target.value as PackingCategory)}
-              className="w-full rounded-xl border border-white/60 bg-white/50 px-4 py-2.5 text-sm outline-none"
-            >
-              <option value="outfits">Outfits</option>
-              <option value="toiletries">Toiletries</option>
-              <option value="shared_gear">Shared Gear</option>
-              <option value="misc">Misc</option>
-            </select>
-
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--palette-text-muted)]">
-                Who can see this?
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setNewVisibility('shared')}
-                  className={`flex flex-col items-center gap-1 rounded-xl border px-3 py-2.5 text-xs font-semibold transition-colors ${
-                    newVisibility === 'shared'
-                      ? 'border-[var(--palette-accent)] bg-[var(--palette-accent)]/15 text-[var(--palette-text)]'
-                      : 'border-white/60 bg-white/40 text-[var(--palette-text-muted)]'
-                  }`}
-                >
-                  <Users size={16} />
-                  Shared
-                  <span className="text-[10px] font-normal opacity-80">Everyone sees it</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setNewVisibility('private')}
-                  className={`flex flex-col items-center gap-1 rounded-xl border px-3 py-2.5 text-xs font-semibold transition-colors ${
-                    newVisibility === 'private'
-                      ? 'border-[var(--palette-accent)] bg-[var(--palette-accent)]/15 text-[var(--palette-text)]'
-                      : 'border-white/60 bg-white/40 text-[var(--palette-text-muted)]'
-                  }`}
-                >
-                  <Lock size={16} />
-                  Private
-                  <span className="text-[10px] font-normal opacity-80">Only you</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <button type="submit" className="btn-primary flex-1">Add</button>
-              <button type="button" onClick={() => setShowAdd(false)} className="btn-secondary flex-1">
-                Cancel
-              </button>
-            </div>
-          </form>
-        ) : (
-          <button
-            onClick={() => setShowAdd(true)}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[var(--palette-accent-light)] py-3 text-sm font-medium text-[var(--palette-accent)]"
-          >
-            <Plus size={16} /> Add item
-          </button>
         )}
       </div>
     </div>

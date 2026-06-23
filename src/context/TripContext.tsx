@@ -1,4 +1,4 @@
-import { createContext, useContext, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useContext, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type {
   Announcement,
   AnnouncementType,
@@ -110,6 +110,7 @@ export function TripProvider({ children }: { children: ReactNode }) {
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [settings, setSettingsState] = useState<AppSettings>(getSettings())
   const [activeDayId, setActiveDayId] = useState<string | null>(null)
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const refresh = useCallback(async () => {
     if (!session?.tripId) {
@@ -155,7 +156,10 @@ export function TripProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!session?.tripId) return
     return subscribeToTripChanges(session.tripId, () => {
-      void refresh()
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+      refreshTimerRef.current = setTimeout(() => {
+        void refresh()
+      }, 300)
     })
   }, [session?.tripId, refresh])
 
@@ -237,37 +241,90 @@ export function TripProvider({ children }: { children: ReactNode }) {
   const packItem = useCallback(
     async (itemId: string, packed: boolean) => {
       if (!member) throw new Error('Not joined to the trip')
-      await togglePackingItem(itemId, packed, packed ? member.id : null, member.id)
-      await refresh()
+      const prev = packingItems
+      setPackingItems((items) =>
+        items.map((item) =>
+          item.id === itemId
+            ? { ...item, is_packed: packed, packed_by: packed ? member.id : null }
+            : item,
+        ),
+      )
+      try {
+        await togglePackingItem(itemId, packed, packed ? member.id : null, member.id)
+      } catch (err) {
+        setPackingItems(prev)
+        throw err
+      }
     },
-    [member, refresh],
+    [member, packingItems],
   )
 
   const assignItem = useCallback(
     async (itemId: string, memberId: string | null) => {
       if (!member) throw new Error('Not joined to the trip')
-      await assignPackingItem(itemId, memberId, member.id)
-      await refresh()
+      const prev = packingItems
+      setPackingItems((items) =>
+        items.map((item) =>
+          item.id === itemId ? { ...item, assigned_member_id: memberId } : item,
+        ),
+      )
+      try {
+        await assignPackingItem(itemId, memberId, member.id)
+      } catch (err) {
+        setPackingItems(prev)
+        throw err
+      }
     },
-    [member, refresh],
+    [member, packingItems],
   )
 
   const addItem = useCallback(
     async (label: string, category: PackingCategory, visibility: PackingVisibility) => {
       if (!trip || !member) throw new Error('Not joined to the trip')
-      await addPackingItem(trip.id, label, category, visibility, member.id)
-      await refresh()
+      const tempId = `temp-${Date.now()}`
+      const nextOrder =
+        packingItems
+          .filter((p) => p.trip_id === trip.id && p.visibility === visibility)
+          .reduce((max, p) => Math.max(max, p.sort_order ?? 0), -1) + 1
+      const optimistic: PackingItem = {
+        id: tempId,
+        trip_id: trip.id,
+        label,
+        category,
+        visibility,
+        sort_order: nextOrder,
+        created_by_member_id: member.id,
+        assigned_member_id: null,
+        is_packed: false,
+        packed_by: null,
+        created_at: new Date().toISOString(),
+      }
+      const prev = packingItems
+      setPackingItems((items) => [...items, optimistic])
+      try {
+        const created = await addPackingItem(trip.id, label, category, visibility, member.id)
+        setPackingItems((items) => items.map((item) => (item.id === tempId ? created : item)))
+      } catch (err) {
+        setPackingItems(prev)
+        throw err
+      }
     },
-    [trip, member, refresh],
+    [trip, member, packingItems],
   )
 
   const removeItem = useCallback(
     async (itemId: string) => {
       if (!member) throw new Error('Not joined to the trip')
-      await deletePackingItem(itemId, member.id)
-      await refresh()
+      const prev = packingItems
+      setPackingItems((items) => items.filter((item) => item.id !== itemId))
+      try {
+        await deletePackingItem(itemId, member.id)
+      } catch (err) {
+        setPackingItems(prev)
+        throw err
+      }
     },
-    [member, refresh],
+    [member, packingItems],
   )
 
   const reorderItems = useCallback(

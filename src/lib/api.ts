@@ -280,6 +280,14 @@ export async function fetchTripData(tripId: string) {
     }
   }
 
+  if (memberId) {
+    try {
+      await ensureMemberSession(memberId)
+    } catch {
+      // Reads may still work via legacy auth_uid membership.
+    }
+  }
+
   const supabase = getSupabase()
   const [tripRes, membersRes, daysRes, announcementsRes, packingRes, expensesRes, feedPosts] = await Promise.all([
     supabase.from('trips').select('*').eq('id', tripId).single(),
@@ -307,6 +315,10 @@ export async function fetchTripData(tripId: string) {
     checkIns = (data ?? []) as CheckIn[]
   }
 
+  if (packingRes.error) {
+    throw new Error(`Could not load packing list: ${packingRes.error.message}`)
+  }
+
   return {
     trip: tripRes.data as Trip,
     members: (membersRes.data ?? []).map((m) => ({
@@ -325,17 +337,20 @@ export async function fetchTripData(tripId: string) {
 
 function filterPackingItemsForMember(items: PackingItem[], memberId?: string): PackingItem[] {
   return items
-    .map((item, index) => ({
-      ...item,
-      visibility: item.visibility ?? 'shared',
-      sort_order: item.sort_order ?? index,
-      created_by_member_id: item.created_by_member_id ?? null,
-    }))
+    .map((item, index) => {
+      const visibility =
+        item.visibility === 'private' && !item.created_by_member_id
+          ? 'shared'
+          : (item.visibility ?? 'shared')
+      return {
+        ...item,
+        visibility,
+        sort_order: item.sort_order ?? index,
+        created_by_member_id: item.created_by_member_id ?? null,
+      }
+    })
     .filter(
-      (item) =>
-        item.visibility !== 'private' ||
-        item.created_by_member_id === memberId ||
-        item.created_by_member_id == null,
+      (item) => item.visibility !== 'private' || item.created_by_member_id === memberId,
     )
 }
 
