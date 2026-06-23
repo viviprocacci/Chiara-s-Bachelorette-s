@@ -1,7 +1,57 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <radialGradient id="glow" cx="256" cy="256" r="160" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F5D0CB" stop-opacity="0.9"/>
+      <stop offset="70%" stop-color="#FCE8E4" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#FCE8E4" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sparkleMain" x1="140" y1="140" x2="372" y2="372" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F5D0CB"/>
+      <stop offset="45%" stop-color="#E8A0BF"/>
+      <stop offset="100%" stop-color="#3BA4BC"/>
+    </linearGradient>
+    <linearGradient id="sparkleInner" x1="200" y1="200" x2="312" y2="312" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#A8E0EE" stop-opacity="0.5"/>
+    </linearGradient>
+  </defs>
+
   <rect width="512" height="512" rx="96" fill="#FDF6F4"/>
-  <circle cx="256" cy="256" r="180" fill="#FCE8E4" opacity="0.8"/>
-  <path d="M256 80 Q380 160 360 280 Q340 400 256 432 Q172 400 152 280 Q132 160 256 80" fill="none" stroke="#E8A0BF" stroke-width="8" opacity="0.6"/>
-  <path d="M256 140 Q340 200 330 280 Q320 360 256 380 Q192 360 182 280 Q172 200 256 140" fill="none" stroke="#3BA4BC" stroke-width="6" opacity="0.5"/>
-  <text x="256" y="280" text-anchor="middle" font-family="Georgia, serif" font-size="120" fill="#E8A0BF">&</text>
+  <circle cx="256" cy="256" r="180" fill="#FCE8E4" opacity="0.85"/>
+  <circle cx="256" cy="256" r="130" fill="url(#glow)"/>
+
+  <!-- tiny accent sparkles -->
+  <g opacity="0.55">
+    <path d="M118 118 L122 130 L134 134 L122 138 L118 150 L114 138 L102 134 L114 130 Z" fill="#E8A0BF"/>
+    <path d="M394 118 L398 130 L410 134 L398 138 L394 150 L390 138 L378 134 L390 130 Z" fill="#3BA4BC"/>
+    <path d="M394 394 L398 406 L410 410 L398 414 L394 426 L390 414 L378 410 L390 406 Z" fill="#E8A0BF"/>
+  </g>
+
+  <!-- main sparkle -->
+  <path
+    d="M256 118
+       C262 198 268 228 278 242
+       C292 252 362 256 362 256
+       C292 260 278 270 278 284
+       C268 298 262 314 256 394
+       C250 314 244 298 234 284
+       C234 270 220 260 150 256
+       C220 252 234 242 234 228
+       C244 214 250 198 256 118
+       Z"
+    fill="url(#sparkleMain)"
+  />
+  <path
+    d="M256 168
+       C260 220 264 238 270 246
+       C278 252 310 256 310 256
+       C278 260 270 266 270 274
+       C264 282 260 292 256 344
+       C252 292 248 282 242 274
+       C242 266 234 260 202 256
+       C234 252 242 246 242 238
+       C248 230 252 220 256 168
+       Z"
+    fill="url(#sparkleInner)"
+  />
 </svg>
