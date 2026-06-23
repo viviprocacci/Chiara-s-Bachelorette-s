@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { validateInvite, getAvailableMembers, joinTrip, isSupabaseConfigured } from '@/lib/api'
 import { setSession, getSession } from '@/lib/storage'
-import { DEMO_INVITE_CODE, DEMO_PIN, TEST_INVITE_CODE, TEST_PIN } from '@/lib/demo-data'
+import { DEMO_INVITE_CODE, DEMO_PIN } from '@/lib/demo-data'
 import type { Trip, TripMember } from '@/types'
 
 function joinErrorMessage(err: unknown): string {
@@ -141,7 +141,6 @@ export default function JoinPage() {
         {!isSupabaseConfigured && (
           <div className="mb-4 rounded-xl border border-amber-200/60 bg-amber-50/60 px-4 py-3 text-xs text-amber-800">
             Demo mode — party code <strong>{DEMO_INVITE_CODE}</strong> / PIN <strong>{DEMO_PIN}</strong>
-            {' · '}test code <strong>{TEST_INVITE_CODE}</strong> / PIN <strong>{TEST_PIN}</strong>
           </div>
         )}
 

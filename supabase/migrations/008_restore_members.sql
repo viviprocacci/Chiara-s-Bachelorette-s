@@ -1,4 +1,4 @@
--- Restore all 10 party members and free name slots for the join screen.
+-- Restore all 9 party members and free name slots for the join screen.
 -- Also exposes restore_trip_members() for the organizer in Settings.
 CREATE OR REPLACE FUNCTION restore_trip_members(
   p_trip_id UUID,
@@ -33,8 +33,7 @@ BEGIN
     ('Hannah', 'guest', '#7B9ACC'),
     ('Abby', 'guest', '#C9956B'),
     ('Makayla', 'guest', '#F5C6D0'),
-    ('Liz', 'guest', '#A8E0EE'),
-    ('Apps Test', 'guest', '#9CAF88')
+    ('Liz', 'guest', '#A8E0EE')
   ) AS t(display_name, role, avatar_color)
   LOOP
     INSERT INTO trip_members (trip_id, display_name, role, avatar_color)
@@ -83,8 +82,7 @@ EXCEPTION
       ('Hannah', 'guest', '#7B9ACC'),
       ('Abby', 'guest', '#C9956B'),
       ('Makayla', 'guest', '#F5C6D0'),
-      ('Liz', 'guest', '#A8E0EE'),
-      ('Apps Test', 'guest', '#9CAF88')
+      ('Liz', 'guest', '#A8E0EE')
     ) AS v(display_name, role, avatar_color)
     ON CONFLICT (trip_id, display_name) DO UPDATE SET
       role = EXCLUDED.role,

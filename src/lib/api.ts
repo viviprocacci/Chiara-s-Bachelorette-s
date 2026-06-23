@@ -8,8 +8,6 @@ import {
   saveDemoState,
   DEMO_INVITE_CODE,
   DEMO_PIN,
-  TEST_INVITE_CODE,
-  TEST_PIN,
   DEMO_STATE_KEY,
 } from '@/lib/demo-data'
 import { AVATAR_COLORS } from '@/theme/palettes'
@@ -34,15 +32,9 @@ export { isSupabaseConfigured }
 
 export async function validateInvite(code: string, pin?: string): Promise<Trip | null> {
   const normalizedCode = code.trim().toUpperCase()
-  const isTestInvite = normalizedCode === TEST_INVITE_CODE
-  const lookupCode = isTestInvite ? DEMO_INVITE_CODE : normalizedCode
 
   if (!isSupabaseConfigured) {
-    if (isTestInvite) {
-      if (pin != null && pin !== '' && pin.trim() !== TEST_PIN) return null
-      return { ...demoTrip, pin_hash: TEST_PIN }
-    }
-    if (lookupCode === DEMO_INVITE_CODE && (!pin || pin === DEMO_PIN)) {
+    if (normalizedCode === DEMO_INVITE_CODE && (!pin || pin === DEMO_PIN)) {
       return demoTrip
     }
     return null
@@ -52,15 +44,10 @@ export async function validateInvite(code: string, pin?: string): Promise<Trip |
   const { data, error } = await supabase
     .from('trips')
     .select('*')
-    .eq('invite_code', lookupCode)
+    .eq('invite_code', normalizedCode)
     .single()
 
   if (error || !data) return null
-
-  if (isTestInvite) {
-    if (pin != null && pin !== '' && pin.trim() !== TEST_PIN) return null
-    return { ...(data as Trip), pin_hash: TEST_PIN }
-  }
 
   if (pin != null && pin !== '' && data.pin_hash && data.pin_hash !== pin.trim()) {
     return null
