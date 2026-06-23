@@ -130,9 +130,10 @@ function OnboardingOverlay({ onFinish }: { onFinish: () => void }) {
                     className="flex h-11 w-11 items-center justify-center rounded-xl"
                     style={{
                       background: 'var(--palette-accent-light)',
+                      color: 'var(--palette-text-muted)',
                     }}
                   >
-                    <VenmoIcon size={22} />
+                    <VenmoIcon size={20} className="text-[var(--palette-text-muted)]" />
                   </div>
                 ) : (
                   current.icons.map((Icon, i) => (

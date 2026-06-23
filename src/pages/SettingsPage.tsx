@@ -142,9 +142,9 @@ export default function SettingsPage() {
           <div className="flex items-center gap-4">
             <div
               className="flex h-10 w-10 items-center justify-center rounded-xl"
-              style={{ background: 'rgba(0, 140, 255, 0.12)' }}
+              style={{ background: 'var(--palette-accent-light)', color: 'var(--palette-text-muted)' }}
             >
-              <VenmoIcon size={20} />
+              <VenmoIcon size={18} className="text-[var(--palette-text-muted)]" />
             </div>
             <div className="flex-1">
               <p className="text-sm font-medium">Venmo username</p>

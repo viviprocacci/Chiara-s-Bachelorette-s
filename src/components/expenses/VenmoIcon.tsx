@@ -1,6 +1,6 @@
 export default function VenmoIcon({
   size = 20,
-  className,
+  className = 'text-[var(--palette-text-muted)]',
 }: {
   size?: number
   className?: string
@@ -14,9 +14,8 @@ export default function VenmoIcon({
       className={className}
       aria-hidden
     >
-      <circle cx="12" cy="12" r="12" fill="#008CFF" />
       <path
-        fill="#fff"
+        fill="currentColor"
         d="M16.8 6.5c-.3 2.1-1.5 4.8-2.7 6.9l-3.4-9.4H7.2l5.3 13.5c-.3.7-.8 1.8-1.3 2.6-.4.6-.9 1.1-1.5 1.1-.4 0-.8-.2-1.1-.5l-1.2-1.3 1.8-1.6.5.6.4-.9L5 6.5h3.5l2.8 7.6L14.5 6.5H16.8z"
       />
     </svg>

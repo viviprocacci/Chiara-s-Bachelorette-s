@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Plus, Copy, Check, Trash2, ArrowDownLeft, ArrowUpRight, Receipt } from 'lucide-react'
 import { useTrip } from '@/context/TripContext'
-import { formatCurrency } from '@/lib/storage'
+import { formatCurrency, getDebtsOwedTo } from '@/lib/storage'
 import UndoToast from '@/components/layout/UndoToast'
 import VenmoIcon, { openVenmoPay } from '@/components/expenses/VenmoIcon'
 import type { Expense } from '@/types'
@@ -117,6 +117,17 @@ export default function ExpenseTracker() {
       .sort((a, b) => b.amount - a.amount)
   }, [members, balances])
 
+  const debtorsToMe = useMemo(() => {
+    if (!member) return []
+    const names = Object.fromEntries(members.map((m) => [m.id, m.display_name]))
+    return getDebtsOwedTo(member.id, balances, names)
+  }, [member, balances, members])
+
+  const debtToMeByMember = useMemo(
+    () => Object.fromEntries(debtorsToMe.map((d) => [d.id, d.amount])),
+    [debtorsToMe],
+  )
+
   const primaryCreditor = useMemo(() => {
     if (youOwe <= 0) return null
     return peopleOwed.find((p) => p.id !== member?.id) ?? null
@@ -132,6 +143,32 @@ export default function ExpenseTracker() {
   const handleVenmoPay = () => {
     if (youOwe <= 0 || !venmoPayNote) return
     openVenmoPay(youOwe, venmoPayNote, primaryCreditor?.venmo_username ?? undefined)
+  }
+
+  const handleMarkPaid = async (debtorId: string, debtorName: string, amountCents: number) => {
+    if (!member) return
+    if (
+      !window.confirm(`Mark ${debtorName} as paid ${formatCurrency(amountCents)}? They'll come off your owed list.`)
+    ) {
+      return
+    }
+    try {
+      const added = await addNewExpense(
+        `${debtorName.split(' ')[0]} paid ${member.display_name.split(' ')[0]}`,
+        amountCents,
+        debtorId,
+        [member.id],
+      )
+      if (added) {
+        offerUndo({
+          message: `${debtorName.split(' ')[0]} marked as paid`,
+          kind: 'delete',
+          expenseId: added.id,
+        })
+      }
+    } catch {
+      window.alert('Could not record payment — try again.')
+    }
   }
 
   const toggleSplitMember = (memberId: string) => {
@@ -271,10 +308,10 @@ export default function ExpenseTracker() {
             <button
               type="button"
               onClick={handleVenmoPay}
-              className="mt-3 flex items-center gap-1.5 rounded-full bg-[#008CFF]/10 px-3 py-1.5 text-[11px] font-semibold text-[#008CFF] transition-colors hover:bg-[#008CFF]/20 active:scale-95"
+              className="btn-secondary mt-3 flex w-full items-center justify-center gap-2 py-2 text-[11px] font-medium"
             >
-              <VenmoIcon size={16} />
-              Pay on Venmo
+              <VenmoIcon size={14} />
+              Pay with Venmo
             </button>
           )}
         </div>
@@ -293,6 +330,34 @@ export default function ExpenseTracker() {
           <p className="mt-1 font-display text-2xl font-bold tabular-nums text-emerald-600">
             {youAreOwed > 0 ? formatCurrency(youAreOwed) : '—'}
           </p>
+          {debtorsToMe.length > 0 && (
+            <ul className="mt-3 w-full space-y-1 border-t border-emerald-200/60 pt-3">
+              {debtorsToMe.map((d) => (
+                <li key={d.id}>
+                  <button
+                    type="button"
+                    onClick={() => void handleMarkPaid(d.id, d.name, d.amount)}
+                    className="flex w-full items-center justify-between gap-2 rounded-lg px-1 py-1.5 text-left transition-colors hover:bg-emerald-50/80 active:scale-[0.99]"
+                  >
+                    <span className="truncate text-[11px] font-medium text-[var(--palette-text)]">
+                      {d.name}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      <span className="font-mono text-[11px] tabular-nums font-semibold text-emerald-600">
+                        {formatCurrency(d.amount)}
+                      </span>
+                      <span className="rounded-full border border-emerald-200/80 bg-white/60 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-700">
+                        Paid
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+              <p className="px-1 text-[10px] text-[var(--palette-text-muted)]">
+                Tap a name when they pay you
+              </p>
+            </ul>
+          )}
         </div>
       </motion.div>
 
@@ -314,20 +379,49 @@ export default function ExpenseTracker() {
               <p className="text-xs text-[var(--palette-text-muted)]">Nobody</p>
             ) : (
               <ul className="space-y-2">
-                {peopleWhoOwe.map((p) => (
-                  <li key={p.id} className="flex items-center justify-between gap-2 text-xs">
-                    <span
-                      className={`truncate font-medium ${
-                        p.id === member?.id ? 'text-red-500' : ''
-                      }`}
-                    >
-                      {p.id === member?.id ? 'You' : p.name}
-                    </span>
-                    <span className="shrink-0 font-mono tabular-nums font-semibold text-red-500">
-                      {formatCurrency(p.amount)}
-                    </span>
-                  </li>
-                ))}
+                {peopleWhoOwe.map((p) => {
+                  const owesMe = p.id !== member?.id && debtToMeByMember[p.id] != null
+                  const amountToMe = debtToMeByMember[p.id]
+
+                  if (owesMe) {
+                    return (
+                      <li key={p.id}>
+                        <button
+                          type="button"
+                          onClick={() => void handleMarkPaid(p.id, p.name, amountToMe)}
+                          className="flex w-full items-center justify-between gap-2 rounded-lg px-1 py-0.5 text-left transition-colors hover:bg-red-50/50 active:scale-[0.99]"
+                        >
+                          <span className="truncate text-xs font-medium text-[var(--palette-text)]">
+                            {p.name}
+                          </span>
+                          <span className="flex shrink-0 items-center gap-1.5">
+                            <span className="font-mono text-xs tabular-nums font-semibold text-red-500">
+                              {formatCurrency(amountToMe)}
+                            </span>
+                            <span className="text-[9px] font-semibold uppercase tracking-wide text-[var(--palette-text-muted)]">
+                              Paid
+                            </span>
+                          </span>
+                        </button>
+                      </li>
+                    )
+                  }
+
+                  return (
+                    <li key={p.id} className="flex items-center justify-between gap-2 text-xs">
+                      <span
+                        className={`truncate font-medium ${
+                          p.id === member?.id ? 'text-red-500' : ''
+                        }`}
+                      >
+                        {p.id === member?.id ? 'You' : p.name}
+                      </span>
+                      <span className="shrink-0 font-mono tabular-nums font-semibold text-red-500">
+                        {formatCurrency(p.amount)}
+                      </span>
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </div>

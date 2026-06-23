@@ -140,6 +140,20 @@ export function simplifyDebts(
   balances: Record<string, number>,
   memberNames: Record<string, string>,
 ): string[] {
+  return simplifyPairwiseDebts(balances).map(
+    (p) =>
+      `${memberNames[p.debtorId] ?? 'Someone'} owes ${memberNames[p.creditorId] ?? 'someone'} ${formatCurrency(p.amountCents)}`,
+  )
+}
+
+export interface PairwiseDebt {
+  debtorId: string
+  creditorId: string
+  amountCents: number
+}
+
+/** Greedy debt simplification — who owes whom how much. */
+export function simplifyPairwiseDebts(balances: Record<string, number>): PairwiseDebt[] {
   const debtors: { id: string; amount: number }[] = []
   const creditors: { id: string; amount: number }[] = []
 
@@ -148,16 +162,34 @@ export function simplifyDebts(
     else if (balance > 1) creditors.push({ id, amount: balance })
   }
 
-  const lines: string[] = []
+  const pairs: PairwiseDebt[] = []
   let i = 0
   let j = 0
   while (i < debtors.length && j < creditors.length) {
     const pay = Math.min(debtors[i].amount, creditors[j].amount)
-    lines.push(`${memberNames[debtors[i].id]} owes ${memberNames[creditors[j].id]} ${formatCurrency(pay)}`)
+    pairs.push({
+      debtorId: debtors[i].id,
+      creditorId: creditors[j].id,
+      amountCents: pay,
+    })
     debtors[i].amount -= pay
     creditors[j].amount -= pay
     if (debtors[i].amount < 1) i++
     if (creditors[j].amount < 1) j++
   }
-  return lines
+  return pairs
+}
+
+export function getDebtsOwedTo(
+  creditorId: string,
+  balances: Record<string, number>,
+  memberNames: Record<string, string>,
+): { id: string; name: string; amount: number }[] {
+  return simplifyPairwiseDebts(balances)
+    .filter((p) => p.creditorId === creditorId)
+    .map((p) => ({
+      id: p.debtorId,
+      name: memberNames[p.debtorId] ?? 'Someone',
+      amount: p.amountCents,
+    }))
 }
