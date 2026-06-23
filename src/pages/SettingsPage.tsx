@@ -1,16 +1,25 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Bell, Volume2, Smartphone, Sparkles, LogOut, BookOpen, Users } from 'lucide-react'
 import { useTrip } from '@/context/TripContext'
 import { useOnboarding } from '@/components/layout/OnboardingOverlay'
 import PageHeader from '@/components/layout/PageHeader'
 import { requestPushNotifications } from '@/lib/api'
+import VenmoIcon from '@/components/expenses/VenmoIcon'
 
 export default function SettingsPage() {
-  const { settings, updateSettings, logout, isDemo, isOrganizer, restoreMembers } = useTrip()
+  const { member, settings, updateSettings, updateVenmoUsername, logout, isDemo, isOrganizer, restoreMembers } =
+    useTrip()
   const { showOnboarding } = useOnboarding()
   const [pushStatus, setPushStatus] = useState<string | null>(null)
   const [restoreStatus, setRestoreStatus] = useState<string | null>(null)
+  const [venmoUsername, setVenmoUsername] = useState(member?.venmo_username ?? '')
+  const [venmoStatus, setVenmoStatus] = useState<string | null>(null)
+  const [venmoSaving, setVenmoSaving] = useState(false)
+
+  useEffect(() => {
+    setVenmoUsername(member?.venmo_username ?? '')
+  }, [member?.venmo_username])
 
   const toggles = [
     {
@@ -43,6 +52,21 @@ export default function SettingsPage() {
       setRestoreStatus('Could not restore — run migration 008_restore_members.sql in Supabase')
     }
     setTimeout(() => setRestoreStatus(null), 4000)
+  }
+
+  const handleSaveVenmo = async () => {
+    setVenmoStatus(null)
+    setVenmoSaving(true)
+    try {
+      const trimmed = venmoUsername.trim()
+      await updateVenmoUsername(trimmed ? trimmed : null)
+      setVenmoStatus('Venmo username saved')
+    } catch {
+      setVenmoStatus('Could not save — run migration 017_member_venmo.sql in Supabase')
+    } finally {
+      setVenmoSaving(false)
+      setTimeout(() => setVenmoStatus(null), 3000)
+    }
   }
 
   return (
@@ -111,6 +135,42 @@ export default function SettingsPage() {
           </button>
           {pushStatus && (
             <p className="mt-2 text-center text-xs text-[var(--palette-accent)]">{pushStatus}</p>
+          )}
+        </div>
+
+        <div className="glass-card p-4">
+          <div className="flex items-center gap-4">
+            <div
+              className="flex h-10 w-10 items-center justify-center rounded-xl"
+              style={{ background: 'rgba(0, 140, 255, 0.12)' }}
+            >
+              <VenmoIcon size={20} />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium">Venmo username</p>
+              <p className="text-[10px] text-[var(--palette-text-muted)]">
+                Friends can pay you in one tap from Split
+              </p>
+            </div>
+          </div>
+          <input
+            value={venmoUsername}
+            onChange={(e) => setVenmoUsername(e.target.value)}
+            placeholder="@your-username"
+            className="mt-3 w-full rounded-xl border border-white/60 bg-white/50 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[var(--palette-accent)]"
+            autoCapitalize="none"
+            autoCorrect="off"
+          />
+          <button
+            type="button"
+            onClick={() => void handleSaveVenmo()}
+            disabled={venmoSaving}
+            className="btn-secondary mt-3 w-full text-sm disabled:opacity-50"
+          >
+            {venmoSaving ? 'Saving…' : 'Save Venmo username'}
+          </button>
+          {venmoStatus && (
+            <p className="mt-2 text-center text-xs text-[var(--palette-accent)]">{venmoStatus}</p>
           )}
         </div>
 

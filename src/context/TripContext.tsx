@@ -11,6 +11,7 @@ import type {
   FeedPost,
   PackingCategory,
   PackingItem,
+  PackingVisibility,
   Trip,
   TripMember,
 } from '@/types'
@@ -25,10 +26,13 @@ import {
   togglePackingItem,
   assignPackingItem,
   addPackingItem,
+  deletePackingItem,
+  reorderPackingItems,
   addExpense,
   clearAllExpenses,
   deleteExpense,
   restoreExpenses,
+  updateMemberVenmo,
   createEvent,
   updateEvent,
   isSupabaseConfigured,
@@ -69,7 +73,9 @@ interface TripContextValue {
   moveEventTime: (eventId: string, startTime: string) => Promise<void>
   packItem: (itemId: string, packed: boolean) => Promise<void>
   assignItem: (itemId: string, memberId: string | null) => Promise<void>
-  addItem: (label: string, category: PackingCategory) => Promise<void>
+  addItem: (label: string, category: PackingCategory, visibility: PackingVisibility) => Promise<void>
+  removeItem: (itemId: string) => Promise<void>
+  reorderItems: (itemIds: string[]) => Promise<void>
   addNewExpense: (label: string, amountCents: number, paidBy: string, splitAmong: string[]) => Promise<Expense | undefined>
   clearExpenses: () => Promise<void>
   restoreExpenses: (expenses: Expense[]) => Promise<void>
@@ -77,6 +83,7 @@ interface TripContextValue {
   addNewEvent: (dayId: string, event: Omit<Event, 'id' | 'day_id'>) => Promise<void>
   editEvent: (eventId: string, updates: Partial<Event>) => Promise<void>
   updateSettings: (updates: Partial<AppSettings>) => void
+  updateVenmoUsername: (username: string | null) => Promise<void>
   logout: () => void
   restoreMembers: () => Promise<void>
   getEventCheckIns: (eventId: string) => CheckIn[]
@@ -110,6 +117,14 @@ export function TripProvider({ children }: { children: ReactNode }) {
       return
     }
     try {
+      let me: TripMember | null = null
+      if (session.memberId && isSupabaseConfigured) {
+        try {
+          me = await ensureMemberSession(session.memberId)
+        } catch {
+          // Fall back to cached member; writes will re-sync or fail clearly.
+        }
+      }
       const data = await fetchTripData(session.tripId)
       setTrip(data.trip)
       setMembers(data.members)
@@ -120,13 +135,8 @@ export function TripProvider({ children }: { children: ReactNode }) {
       setFeedPosts(data.feedPosts)
       setPackingItems(data.packingItems)
       setExpenses(data.expenses)
-      let me = data.members.find((m) => m.id === session.memberId) ?? null
-      if (session.memberId && isSupabaseConfigured) {
-        try {
-          me = await ensureMemberSession(session.memberId)
-        } catch {
-          // Keep cached member for read-only UI; writes will re-sync or fail clearly.
-        }
+      if (!me) {
+        me = data.members.find((m) => m.id === session.memberId) ?? null
       }
       setMember(me)
       if (!activeDayId && data.days.length > 0) {
@@ -226,7 +236,8 @@ export function TripProvider({ children }: { children: ReactNode }) {
 
   const packItem = useCallback(
     async (itemId: string, packed: boolean) => {
-      await togglePackingItem(itemId, packed, packed ? member?.id ?? null : null)
+      if (!member) throw new Error('Not joined to the trip')
+      await togglePackingItem(itemId, packed, packed ? member.id : null, member.id)
       await refresh()
     },
     [member, refresh],
@@ -234,19 +245,38 @@ export function TripProvider({ children }: { children: ReactNode }) {
 
   const assignItem = useCallback(
     async (itemId: string, memberId: string | null) => {
-      await assignPackingItem(itemId, memberId)
+      if (!member) throw new Error('Not joined to the trip')
+      await assignPackingItem(itemId, memberId, member.id)
       await refresh()
     },
-    [refresh],
+    [member, refresh],
   )
 
   const addItem = useCallback(
-    async (label: string, category: PackingCategory) => {
-      if (!trip) return
-      await addPackingItem(trip.id, label, category)
+    async (label: string, category: PackingCategory, visibility: PackingVisibility) => {
+      if (!trip || !member) throw new Error('Not joined to the trip')
+      await addPackingItem(trip.id, label, category, visibility, member.id)
       await refresh()
     },
-    [trip, refresh],
+    [trip, member, refresh],
+  )
+
+  const removeItem = useCallback(
+    async (itemId: string) => {
+      if (!member) throw new Error('Not joined to the trip')
+      await deletePackingItem(itemId, member.id)
+      await refresh()
+    },
+    [member, refresh],
+  )
+
+  const reorderItems = useCallback(
+    async (itemIds: string[]) => {
+      if (!member) throw new Error('Not joined to the trip')
+      await reorderPackingItems(itemIds, member.id)
+      await refresh()
+    },
+    [member, refresh],
   )
 
   const addNewExpense = useCallback(
@@ -305,6 +335,15 @@ export function TripProvider({ children }: { children: ReactNode }) {
       return next
     })
   }, [])
+
+  const updateVenmoUsername = useCallback(
+    async (username: string | null) => {
+      if (!member) return
+      await updateMemberVenmo(member.id, username)
+      await refresh()
+    },
+    [member, refresh],
+  )
 
   const logout = useCallback(() => {
     const memberId = member?.id
@@ -389,6 +428,8 @@ export function TripProvider({ children }: { children: ReactNode }) {
       packItem,
       assignItem,
       addItem,
+      removeItem,
+      reorderItems,
       addNewExpense,
       clearExpenses,
       restoreExpenses: restoreExpensesList,
@@ -396,6 +437,7 @@ export function TripProvider({ children }: { children: ReactNode }) {
       addNewEvent,
       editEvent,
       updateSettings,
+      updateVenmoUsername,
       logout,
       restoreMembers,
       getEventCheckIns,
@@ -408,7 +450,7 @@ export function TripProvider({ children }: { children: ReactNode }) {
       loading, trip, member, members, days, events, checkIns, announcements, feedPosts,
       packingItems, expenses, settings, activeDayId, isOrganizer,
       refresh, checkIn, postAnnouncement, postPhoto, likePost, commentOnPost, removePost, moveEventTime, packItem, assignItem,
-      addItem, addNewExpense, clearExpenses, restoreExpensesList, removeExpense, addNewEvent, editEvent, updateSettings, logout, restoreMembers,
+      addItem, removeItem, reorderItems, addNewExpense, clearExpenses, restoreExpensesList, removeExpense, addNewEvent, editEvent, updateSettings, updateVenmoUsername, logout, restoreMembers,
       getEventCheckIns, getMyCheckIn, getDayEvents, getTodayDay, getNextEvent,
     ],
   )

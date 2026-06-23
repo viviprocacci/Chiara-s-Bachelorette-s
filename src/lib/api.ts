@@ -24,6 +24,7 @@ import type {
   FeedPostComment,
   PackingCategory,
   PackingItem,
+  PackingVisibility,
   SplitType,
   Trip,
   TripMember,
@@ -251,6 +252,13 @@ export async function releaseTripMember(memberId: string): Promise<void> {
   if (error) throw error
 }
 
+async function ensureTripWriteAccess(memberId?: string): Promise<TripMember | null> {
+  if (!isSupabaseConfigured) return null
+  await ensureAnonymousAuth()
+  if (!memberId) return null
+  return ensureMemberSession(memberId)
+}
+
 export async function fetchTripData(tripId: string) {
   const memberId = getSession()?.memberId
 
@@ -258,12 +266,15 @@ export async function fetchTripData(tripId: string) {
     const state = getDemoState()
     return {
       trip: demoTrip,
-      members: demoMembers,
+      members: demoMembers.map((m) => ({
+        ...m,
+        venmo_username: state.memberVenmo?.[m.id] ?? m.venmo_username ?? null,
+      })),
       days: demoDays,
       events: state.events,
       checkIns: state.checkIns,
       announcements: state.announcements,
-      packingItems: state.packingItems,
+      packingItems: filterPackingItemsForMember(state.packingItems, memberId),
       expenses: state.expenses ?? [],
       feedPosts: await loadFeedPostsForTrip(tripId, memberId),
     }
@@ -275,7 +286,7 @@ export async function fetchTripData(tripId: string) {
     supabase.from('trip_members').select('*').eq('trip_id', tripId),
     supabase.from('days').select('*').eq('trip_id', tripId).order('sort_order'),
     supabase.from('announcements').select('*, creator:trip_members(*)').eq('trip_id', tripId).order('created_at', { ascending: false }),
-    supabase.from('packing_items').select('*, assignee:trip_members(*)').eq('trip_id', tripId).order('created_at'),
+    supabase.from('packing_items').select('*').eq('trip_id', tripId).order('sort_order').order('created_at'),
     supabase.from('expenses').select('*, payer:trip_members(*), splits:expense_splits(*, member:trip_members(*))').eq('trip_id', tripId).order('created_at', { ascending: false }),
     loadFeedPostsForTrip(tripId, memberId),
   ])
@@ -298,15 +309,34 @@ export async function fetchTripData(tripId: string) {
 
   return {
     trip: tripRes.data as Trip,
-    members: (membersRes.data ?? []) as TripMember[],
+    members: (membersRes.data ?? []).map((m) => ({
+      ...(m as TripMember),
+      venmo_username: (m as TripMember).venmo_username ?? null,
+    })),
     days,
     events,
     checkIns,
     announcements: (announcementsRes.data ?? []) as Announcement[],
-    packingItems: (packingRes.data ?? []) as PackingItem[],
+    packingItems: filterPackingItemsForMember((packingRes.data ?? []) as PackingItem[], memberId),
     expenses: (expensesRes.data ?? []) as Expense[],
     feedPosts,
   }
+}
+
+function filterPackingItemsForMember(items: PackingItem[], memberId?: string): PackingItem[] {
+  return items
+    .map((item, index) => ({
+      ...item,
+      visibility: item.visibility ?? 'shared',
+      sort_order: item.sort_order ?? index,
+      created_by_member_id: item.created_by_member_id ?? null,
+    }))
+    .filter(
+      (item) =>
+        item.visibility !== 'private' ||
+        item.created_by_member_id === memberId ||
+        item.created_by_member_id == null,
+    )
 }
 
 export async function upsertCheckIn(
@@ -607,6 +637,7 @@ export async function togglePackingItem(
   itemId: string,
   isPacked: boolean,
   packedBy: string | null,
+  memberId?: string,
 ): Promise<void> {
   if (!isSupabaseConfigured) {
     const state = getDemoState()
@@ -619,37 +650,60 @@ export async function togglePackingItem(
     return
   }
 
+  await ensureTripWriteAccess(memberId)
   const supabase = getSupabase()
-  await supabase.from('packing_items').update({ is_packed: isPacked, packed_by: packedBy }).eq('id', itemId)
+  const { error } = await supabase
+    .from('packing_items')
+    .update({ is_packed: isPacked, packed_by: packedBy })
+    .eq('id', itemId)
+  if (error) throw error
 }
 
-export async function assignPackingItem(itemId: string, memberId: string | null): Promise<void> {
+export async function assignPackingItem(
+  itemId: string,
+  assigneeMemberId: string | null,
+  actingMemberId?: string,
+): Promise<void> {
   if (!isSupabaseConfigured) {
     const state = getDemoState()
     const item = state.packingItems.find((p) => p.id === itemId)
     if (item) {
-      item.assigned_member_id = memberId
+      item.assigned_member_id = assigneeMemberId
       saveDemoState(state)
     }
     return
   }
 
+  await ensureTripWriteAccess(actingMemberId)
   const supabase = getSupabase()
-  await supabase.from('packing_items').update({ assigned_member_id: memberId }).eq('id', itemId)
+  const { error } = await supabase
+    .from('packing_items')
+    .update({ assigned_member_id: assigneeMemberId })
+    .eq('id', itemId)
+  if (error) throw error
 }
 
 export async function addPackingItem(
   tripId: string,
   label: string,
   category: PackingCategory,
+  visibility: PackingVisibility,
+  createdByMemberId: string,
 ): Promise<PackingItem> {
   if (!isSupabaseConfigured) {
     const state = getDemoState()
+    const nextOrder =
+      state.packingItems
+        .filter((p) => p.trip_id === tripId && p.visibility === visibility)
+        .reduce((max, p) => Math.max(max, p.sort_order ?? 0), -1) + 1
     const item: PackingItem = {
       id: `p-${Date.now()}`,
       trip_id: tripId,
       label,
       category,
+      visibility,
+      sort_order: nextOrder,
+      created_by_member_id: createdByMemberId,
       assigned_member_id: null,
       is_packed: false,
       packed_by: null,
@@ -660,14 +714,67 @@ export async function addPackingItem(
     return item
   }
 
+  const member = await ensureTripWriteAccess(createdByMemberId)
+  if (!member) throw new Error('Not joined to the trip')
   const supabase = getSupabase()
+  const { data: lastItem } = await supabase
+    .from('packing_items')
+    .select('sort_order')
+    .eq('trip_id', tripId)
+    .eq('visibility', visibility)
+    .order('sort_order', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const nextOrder = (lastItem?.sort_order ?? -1) + 1
   const { data, error } = await supabase
     .from('packing_items')
-    .insert({ trip_id: tripId, label, category })
+    .insert({
+      trip_id: tripId,
+      label,
+      category,
+      visibility,
+      sort_order: nextOrder,
+      created_by_member_id: member.id,
+    })
     .select()
     .single()
   if (error) throw error
   return data as PackingItem
+}
+
+export async function deletePackingItem(itemId: string, memberId?: string): Promise<void> {
+  if (!isSupabaseConfigured) {
+    const state = getDemoState()
+    state.packingItems = state.packingItems.filter((p) => p.id !== itemId)
+    saveDemoState(state)
+    return
+  }
+
+  await ensureTripWriteAccess(memberId)
+  const supabase = getSupabase()
+  const { error } = await supabase.from('packing_items').delete().eq('id', itemId)
+  if (error) throw error
+}
+
+export async function reorderPackingItems(itemIds: string[], memberId?: string): Promise<void> {
+  if (!isSupabaseConfigured) {
+    const state = getDemoState()
+    const orderMap = new Map(itemIds.map((id, index) => [id, index]))
+    state.packingItems = state.packingItems.map((item) =>
+      orderMap.has(item.id) ? { ...item, sort_order: orderMap.get(item.id)! } : item,
+    )
+    saveDemoState(state)
+    return
+  }
+
+  await ensureTripWriteAccess(memberId)
+  const supabase = getSupabase()
+  const updates = itemIds.map((id, index) =>
+    supabase.from('packing_items').update({ sort_order: index }).eq('id', id),
+  )
+  const results = await Promise.all(updates)
+  const failed = results.find((r) => r.error)
+  if (failed?.error) throw failed.error
 }
 
 export async function addExpense(
@@ -729,8 +836,33 @@ export async function deleteExpense(expenseId: string): Promise<void> {
   }
 
   const supabase = getSupabase()
+  const { error: splitsError } = await supabase.from('expense_splits').delete().eq('expense_id', expenseId)
+  if (splitsError) throw splitsError
   const { error } = await supabase.from('expenses').delete().eq('id', expenseId)
   if (error) throw error
+}
+
+export async function updateMemberVenmo(
+  memberId: string,
+  venmoUsername: string | null,
+): Promise<TripMember> {
+  if (!isSupabaseConfigured) {
+    const state = getDemoState()
+    const normalized = venmoUsername?.replace(/^@+/, '').trim().toLowerCase() || null
+    state.memberVenmo = { ...state.memberVenmo, [memberId]: normalized }
+    saveDemoState(state)
+    const base = demoMembers.find((m) => m.id === memberId)
+    if (!base) throw new Error('Member not found')
+    return { ...base, venmo_username: normalized }
+  }
+
+  const supabase = getSupabase()
+  const { data, error } = await supabase.rpc('update_member_venmo', {
+    p_member_id: memberId,
+    p_venmo_username: venmoUsername ?? '',
+  })
+  if (error) throw error
+  return { ...(data as TripMember), venmo_username: (data as TripMember).venmo_username ?? null }
 }
 
 export async function restoreExpenses(tripId: string, expenses: Expense[]): Promise<void> {

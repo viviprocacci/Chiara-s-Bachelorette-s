@@ -20,6 +20,7 @@ import type {
   TripMember,
 
 } from '@/types'
+import { DEFAULT_PACKING_ITEMS } from '@/lib/packing-defaults'
 
 
 
@@ -27,7 +28,7 @@ export const DEMO_INVITE_CODE = 'CHIARA710'
 
 export const DEMO_PIN = '2626'
 
-export const DEMO_STATE_KEY = 'chiara_bach_demo_state_v3'
+export const DEMO_STATE_KEY = 'chiara_bach_demo_state_v4'
 
 
 
@@ -55,23 +56,23 @@ export const demoTrip: Trip = {
 
 export const demoMembers: TripMember[] = [
 
-  { id: 'm1', trip_id: demoTrip.id, auth_uid: '', display_name: 'Chiara', role: 'organizer', avatar_color: '#E8A0BF', created_at: new Date().toISOString() },
+  { id: 'm1', trip_id: demoTrip.id, auth_uid: '', display_name: 'Chiara', role: 'organizer', avatar_color: '#E8A0BF', venmo_username: null, created_at: new Date().toISOString() },
 
-  { id: 'm2', trip_id: demoTrip.id, auth_uid: '', display_name: 'Saoirse', role: 'guest', avatar_color: '#3BA4BC', created_at: new Date().toISOString() },
+  { id: 'm2', trip_id: demoTrip.id, auth_uid: '', display_name: 'Saoirse', role: 'guest', avatar_color: '#3BA4BC', venmo_username: null, created_at: new Date().toISOString() },
 
-  { id: 'm3', trip_id: demoTrip.id, auth_uid: '', display_name: 'Lauren', role: 'guest', avatar_color: '#D4AF37', created_at: new Date().toISOString() },
+  { id: 'm3', trip_id: demoTrip.id, auth_uid: '', display_name: 'Lauren', role: 'guest', avatar_color: '#D4AF37', venmo_username: null, created_at: new Date().toISOString() },
 
-  { id: 'm4', trip_id: demoTrip.id, auth_uid: '', display_name: 'Vivian', role: 'guest', avatar_color: '#6B5B95', created_at: new Date().toISOString() },
+  { id: 'm4', trip_id: demoTrip.id, auth_uid: '', display_name: 'Vivian', role: 'guest', avatar_color: '#6B5B95', venmo_username: null, created_at: new Date().toISOString() },
 
-  { id: 'm5', trip_id: demoTrip.id, auth_uid: '', display_name: 'Victoria', role: 'guest', avatar_color: '#E8652B', created_at: new Date().toISOString() },
+  { id: 'm5', trip_id: demoTrip.id, auth_uid: '', display_name: 'Victoria', role: 'guest', avatar_color: '#E8652B', venmo_username: null, created_at: new Date().toISOString() },
 
-  { id: 'm6', trip_id: demoTrip.id, auth_uid: '', display_name: 'Hannah', role: 'guest', avatar_color: '#7B9ACC', created_at: new Date().toISOString() },
+  { id: 'm6', trip_id: demoTrip.id, auth_uid: '', display_name: 'Hannah', role: 'guest', avatar_color: '#7B9ACC', venmo_username: null, created_at: new Date().toISOString() },
 
-  { id: 'm7', trip_id: demoTrip.id, auth_uid: '', display_name: 'Abby', role: 'guest', avatar_color: '#C9956B', created_at: new Date().toISOString() },
+  { id: 'm7', trip_id: demoTrip.id, auth_uid: '', display_name: 'Abby', role: 'guest', avatar_color: '#C9956B', venmo_username: null, created_at: new Date().toISOString() },
 
-  { id: 'm8', trip_id: demoTrip.id, auth_uid: '', display_name: 'Makayla', role: 'guest', avatar_color: '#F5C6D0', created_at: new Date().toISOString() },
+  { id: 'm8', trip_id: demoTrip.id, auth_uid: '', display_name: 'Makayla', role: 'guest', avatar_color: '#F5C6D0', venmo_username: null, created_at: new Date().toISOString() },
 
-  { id: 'm9', trip_id: demoTrip.id, auth_uid: '', display_name: 'Liz', role: 'guest', avatar_color: '#A8E0EE', created_at: new Date().toISOString() },
+  { id: 'm9', trip_id: demoTrip.id, auth_uid: '', display_name: 'Liz', role: 'guest', avatar_color: '#A8E0EE', venmo_username: null, created_at: new Date().toISOString() },
 
 ]
 
@@ -119,31 +120,19 @@ export const demoAnnouncements: Announcement[] = []
 
 
 
-export const demoPackingItems: PackingItem[] = [
-
-  { id: 'p1', trip_id: demoTrip.id, label: 'Pink pajamas — any shade (Friday)', category: 'outfits', assigned_member_id: null, is_packed: false, packed_by: null, created_at: new Date().toISOString() },
-
-  { id: 'p2', trip_id: demoTrip.id, label: 'Blue workout set (Saturday pilates)', category: 'outfits', assigned_member_id: null, is_packed: false, packed_by: null, created_at: new Date().toISOString() },
-
-  { id: 'p3', trip_id: demoTrip.id, label: 'Blue bikini + linen coverup (boat day)', category: 'outfits', assigned_member_id: null, is_packed: false, packed_by: null, created_at: new Date().toISOString() },
-
-  { id: 'p4', trip_id: demoTrip.id, label: 'Blue dress (Saturday night)', category: 'outfits', assigned_member_id: null, is_packed: false, packed_by: null, created_at: new Date().toISOString() },
-
-  { id: 'p5', trip_id: demoTrip.id, label: 'Sunset satin dress — pink, yellow, or orange (Sunday)', category: 'outfits', assigned_member_id: null, is_packed: false, packed_by: null, created_at: new Date().toISOString() },
-
-  { id: 'p6', trip_id: demoTrip.id, label: 'Sunscreen SPF 50', category: 'toiletries', assigned_member_id: null, is_packed: false, packed_by: null, created_at: new Date().toISOString() },
-
-  { id: 'p7', trip_id: demoTrip.id, label: 'Portable speaker', category: 'shared_gear', assigned_member_id: null, is_packed: false, packed_by: null, created_at: new Date().toISOString() },
-
-  { id: 'p8', trip_id: demoTrip.id, label: 'Polaroid camera + film', category: 'shared_gear', assigned_member_id: null, is_packed: false, packed_by: null, created_at: new Date().toISOString() },
-
-  { id: 'p9', trip_id: demoTrip.id, label: 'Prosecco / champagne (shared)', category: 'shared_gear', assigned_member_id: null, is_packed: false, packed_by: null, created_at: new Date().toISOString() },
-
-  { id: 'p10', trip_id: demoTrip.id, label: 'Phone charger / power bank', category: 'misc', assigned_member_id: null, is_packed: false, packed_by: null, created_at: new Date().toISOString() },
-
-  { id: 'p11', trip_id: demoTrip.id, label: 'Hangover kit (electrolytes, ibuprofen)', category: 'misc', assigned_member_id: null, is_packed: false, packed_by: null, created_at: new Date().toISOString() },
-
-]
+export const demoPackingItems: PackingItem[] = DEFAULT_PACKING_ITEMS.map((item, index) => ({
+  id: `p${index + 1}`,
+  trip_id: demoTrip.id,
+  label: item.label,
+  category: item.category,
+  visibility: 'shared' as const,
+  sort_order: index,
+  created_by_member_id: null,
+  assigned_member_id: null,
+  is_packed: false,
+  packed_by: null,
+  created_at: new Date().toISOString(),
+}))
 
 
 
@@ -174,6 +163,7 @@ export function getDemoState() {
         feedPosts?: FeedPost[]
         feedPostLikes?: { post_id: string; member_id: string }[]
         feedPostComments?: FeedPostComment[]
+        memberVenmo?: Record<string, string | null>
 
       }
 
@@ -184,6 +174,7 @@ export function getDemoState() {
         feedPosts: parsed.feedPosts ?? [],
         feedPostLikes: parsed.feedPostLikes ?? [],
         feedPostComments: parsed.feedPostComments ?? [],
+        memberVenmo: parsed.memberVenmo ?? {},
 
         expenses: parsed.expenses ?? [],
 
@@ -212,6 +203,7 @@ export function getDemoState() {
     feedPosts: [] as FeedPost[],
     feedPostLikes: [] as { post_id: string; member_id: string }[],
     feedPostComments: [] as FeedPostComment[],
+    memberVenmo: {} as Record<string, string | null>,
 
   }
 

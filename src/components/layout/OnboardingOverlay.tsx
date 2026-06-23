@@ -3,11 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Sparkles, Calendar, Camera, Luggage, DollarSign, Receipt } from 'lucide-react'
 import { useTrip } from '@/context/TripContext'
 import { hasCompletedOnboarding, markOnboardingComplete } from '@/lib/storage'
+import VenmoIcon from '@/components/expenses/VenmoIcon'
 
 type OnboardingStep = {
   headline: (name: string) => string
   body: string
   icons: typeof Sparkles[]
+  venmoInput?: boolean
 }
 
 function getSteps(isBride: boolean): OnboardingStep[] {
@@ -36,9 +38,15 @@ function getSteps(isBride: boolean): OnboardingStep[] {
     {
       headline: () => (isBride ? 'Pack & the receipt' : 'Pack & split'),
       body: isBride
-        ? "Everyone can check the packing list — you're the bride, so on Split tap Add to put expenses on the group receipt."
-        : 'Check off the packing list and see what you owe on the group receipt.',
+        ? 'Everyone can check the packing list and add expenses on Split — see who owes what at a glance.'
+        : 'Check off shared gear or add private items only you see — plus split expenses on Split.',
       icons: isBride ? [Luggage, Receipt] : [Luggage, DollarSign],
+    },
+    {
+      headline: () => 'Link Venmo',
+      body: 'Optional — lets friends pay you in one tap from Split.',
+      icons: [DollarSign],
+      venmoInput: true,
     },
   ]
 }
@@ -57,21 +65,37 @@ export function useOnboarding() {
 }
 
 function OnboardingOverlay({ onFinish }: { onFinish: () => void }) {
-  const { member, isOrganizer } = useTrip()
+  const { member, isOrganizer, updateVenmoUsername } = useTrip()
   const [step, setStep] = useState(0)
+  const [venmoUsername, setVenmoUsername] = useState(member?.venmo_username ?? '')
+  const [saving, setSaving] = useState(false)
   const steps = useMemo(() => getSteps(isOrganizer), [isOrganizer])
 
   const firstName = member?.display_name?.split(' ')[0] ?? 'babe'
   const current = steps[step]
   const isLast = step === steps.length - 1
 
-  const finish = () => {
-    if (member) markOnboardingComplete(member.id)
-    onFinish()
+  useEffect(() => {
+    setVenmoUsername(member?.venmo_username ?? '')
+  }, [member?.venmo_username])
+
+  const finish = async (saveVenmo: boolean) => {
+    if (!member) return
+    setSaving(true)
+    try {
+      if (saveVenmo && current.venmoInput) {
+        const trimmed = venmoUsername.trim()
+        await updateVenmoUsername(trimmed ? trimmed : null)
+      }
+      markOnboardingComplete(member.id)
+      onFinish()
+    } finally {
+      setSaving(false)
+    }
   }
 
   const next = () => {
-    if (isLast) finish()
+    if (isLast) void finish(true)
     else setStep((s) => s + 1)
   }
 
@@ -101,18 +125,29 @@ function OnboardingOverlay({ onFinish }: { onFinish: () => void }) {
               transition={{ duration: 0.25 }}
             >
               <div className="mb-4 flex items-center gap-3">
-                {current.icons.map((Icon, i) => (
+                {current.venmoInput ? (
                   <div
-                    key={i}
                     className="flex h-11 w-11 items-center justify-center rounded-xl"
                     style={{
                       background: 'var(--palette-accent-light)',
-                      color: 'var(--palette-accent)',
                     }}
                   >
-                    <Icon size={22} strokeWidth={1.8} />
+                    <VenmoIcon size={22} />
                   </div>
-                ))}
+                ) : (
+                  current.icons.map((Icon, i) => (
+                    <div
+                      key={i}
+                      className="flex h-11 w-11 items-center justify-center rounded-xl"
+                      style={{
+                        background: 'var(--palette-accent-light)',
+                        color: 'var(--palette-accent)',
+                      }}
+                    >
+                      <Icon size={22} strokeWidth={1.8} />
+                    </div>
+                  ))
+                )}
                 <div className="min-w-0 flex-1">
                   <h2 className="font-display text-xl font-bold text-[var(--palette-text)]">
                     {current.headline(firstName)}
@@ -122,6 +157,22 @@ function OnboardingOverlay({ onFinish }: { onFinish: () => void }) {
                   </p>
                 </div>
               </div>
+
+              {current.venmoInput && (
+                <div className="mb-4">
+                  <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-[var(--palette-text-muted)]">
+                    Venmo username
+                  </label>
+                  <input
+                    value={venmoUsername}
+                    onChange={(e) => setVenmoUsername(e.target.value)}
+                    placeholder="@your-username"
+                    className="w-full rounded-xl border border-white/60 bg-white/50 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[var(--palette-accent)]"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                  />
+                </div>
+              )}
             </motion.div>
           </AnimatePresence>
 
@@ -137,11 +188,21 @@ function OnboardingOverlay({ onFinish }: { onFinish: () => void }) {
           </div>
 
           <div className="flex gap-2">
-            <button type="button" onClick={finish} className="btn-secondary flex-1 py-2.5 text-sm">
+            <button
+              type="button"
+              onClick={() => void finish(false)}
+              disabled={saving}
+              className="btn-secondary flex-1 py-2.5 text-sm disabled:opacity-50"
+            >
               Skip
             </button>
-            <button type="button" onClick={next} className="btn-primary flex-1 py-2.5 text-sm">
-              {isLast ? "Let's go ✨" : 'Next'}
+            <button
+              type="button"
+              onClick={next}
+              disabled={saving}
+              className="btn-primary flex-1 py-2.5 text-sm disabled:opacity-50"
+            >
+              {saving ? 'Saving…' : isLast ? "Let's go ✨" : 'Next'}
             </button>
           </div>
         </div>

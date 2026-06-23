@@ -4,6 +4,7 @@ export type EventType = 'brunch' | 'boat' | 'dinner' | 'club' | 'spa' | 'pilates
 export type AnnouncementType = 'schedule_change' | 'arrival' | 'general'
 export type SplitType = 'equal' | 'custom'
 export type PackingCategory = 'outfits' | 'toiletries' | 'shared_gear' | 'misc'
+export type PackingVisibility = 'shared' | 'private'
 
 export interface Trip {
   id: string
@@ -23,6 +24,7 @@ export interface TripMember {
   display_name: string
   role: MemberRole
   avatar_color: string
+  venmo_username: string | null
   created_at: string
 }
 
@@ -95,6 +97,9 @@ export interface PackingItem {
   trip_id: string
   label: string
   category: PackingCategory
+  visibility: PackingVisibility
+  sort_order: number
+  created_by_member_id: string | null
   assigned_member_id: string | null
   is_packed: boolean
   packed_by: string | null
@@ -161,4 +166,9 @@ export const PACKING_CATEGORY_LABELS: Record<PackingCategory, string> = {
   toiletries: 'Toiletries',
   shared_gear: 'Shared Gear',
   misc: 'Misc',
+}
+
+export const PACKING_VISIBILITY_LABELS: Record<PackingVisibility, string> = {
+  shared: 'Shared',
+  private: 'Private',
 }
