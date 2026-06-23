@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Bell, Volume2, Smartphone, Sparkles, LogOut, Zap, BookOpen, Users } from 'lucide-react'
+import { Bell, Volume2, Smartphone, Sparkles, LogOut, BookOpen, Users } from 'lucide-react'
 import { useTrip } from '@/context/TripContext'
 import { useOnboarding } from '@/components/layout/OnboardingOverlay'
 import PageHeader from '@/components/layout/PageHeader'
@@ -24,12 +24,6 @@ export default function SettingsPage() {
       icon: Volume2,
       label: 'Sound effects',
       description: 'Chimes and celebration sounds',
-    },
-    {
-      key: 'chaosMode' as const,
-      icon: Zap,
-      label: 'Chaos Mode',
-      description: '3x confetti, extra haptics & party sounds',
     },
   ]
 

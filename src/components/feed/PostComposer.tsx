@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Camera, ImagePlus, Loader2 } from 'lucide-react'
+import { ImagePlus, Loader2, Images } from 'lucide-react'
 import { prepareImageForUpload } from '@/lib/image-upload'
 
 interface PostComposerProps {
@@ -60,7 +60,6 @@ export default function PostComposer({ onPost }: PostComposerProps) {
         ref={inputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0]
@@ -74,8 +73,8 @@ export default function PostComposer({ onPost }: PostComposerProps) {
           onClick={() => inputRef.current?.click()}
           className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[var(--palette-accent-light)] bg-white/30 py-8 text-sm font-medium text-[var(--palette-text-muted)] transition-colors hover:border-[var(--palette-accent)] hover:text-[var(--palette-accent)]"
         >
-          <Camera size={22} />
-          Share a moment
+          <Images size={22} />
+          Choose from camera roll
         </button>
       ) : (
         <div className="space-y-3">

@@ -68,6 +68,15 @@ export interface Announcement {
   creator?: TripMember
 }
 
+export interface FeedPostComment {
+  id: string
+  post_id: string
+  member_id: string
+  body: string
+  created_at: string
+  author?: TripMember
+}
+
 export interface FeedPost {
   id: string
   trip_id: string
@@ -76,6 +85,9 @@ export interface FeedPost {
   posted_by: string
   created_at: string
   poster?: TripMember
+  like_count?: number
+  liked_by_me?: boolean
+  comments?: FeedPostComment[]
 }
 
 export interface PackingItem {
@@ -113,7 +125,6 @@ export interface ExpenseSplit {
 export interface AppSettings {
   hapticsEnabled: boolean
   soundEnabled: boolean
-  chaosMode: boolean
   notificationsEnabled: boolean
 }
 
@@ -126,7 +137,6 @@ export interface SessionState {
 export const DEFAULT_SETTINGS: AppSettings = {
   hapticsEnabled: true,
   soundEnabled: true,
-  chaosMode: false,
   notificationsEnabled: false,
 }
 

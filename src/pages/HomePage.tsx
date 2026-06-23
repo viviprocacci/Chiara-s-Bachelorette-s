@@ -17,7 +17,6 @@ export default function HomePage() {
     getEventCheckIns,
     feedPosts,
     announcements,
-    settings,
   } = useTrip()
   const today = getTodayDay()
   const nextEvent = getNextEvent()
@@ -102,16 +101,6 @@ export default function HomePage() {
             <span className="text-lg">📅</span>
             <p className="text-sm">{scheduleAlert.message}</p>
           </div>
-        )}
-
-        {settings.chaosMode && (
-          <motion.div
-            animate={{ scale: [1, 1.02, 1] }}
-            transition={{ duration: 2, repeat: Infinity }}
-            className="rounded-xl border border-purple-200/60 bg-purple-50/50 px-4 py-2 text-center text-xs font-bold uppercase tracking-widest text-purple-700"
-          >
-            Chaos Mode Active
-          </motion.div>
         )}
 
         <div>

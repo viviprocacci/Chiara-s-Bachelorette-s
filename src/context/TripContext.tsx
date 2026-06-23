@@ -34,6 +34,9 @@ import {
   isSupabaseConfigured,
   restoreTripMembers,
   releaseTripMember,
+  toggleFeedPostLike,
+  addFeedPostComment,
+  deleteFeedPost,
 } from '@/lib/api'
 import { applyPalette, getPalette } from '@/theme/palettes'
 import { prepareImageForUpload } from '@/lib/image-upload'
@@ -59,6 +62,9 @@ interface TripContextValue {
   checkIn: (eventId: string, status: CheckInStatus) => Promise<void>
   postAnnouncement: (message: string, type?: AnnouncementType, eventId?: string) => Promise<void>
   postPhoto: (file: File, caption: string) => Promise<void>
+  likePost: (postId: string) => Promise<void>
+  commentOnPost: (postId: string, body: string) => Promise<void>
+  removePost: (postId: string) => Promise<void>
   moveEventTime: (eventId: string, startTime: string) => Promise<void>
   packItem: (itemId: string, packed: boolean) => Promise<void>
   assignItem: (itemId: string, memberId: string | null) => Promise<void>
@@ -171,6 +177,32 @@ export function TripProvider({ children }: { children: ReactNode }) {
       await refresh()
     },
     [member, trip, refresh],
+  )
+
+  const likePost = useCallback(
+    async (postId: string) => {
+      if (!member) return
+      await toggleFeedPostLike(postId, member.id)
+      await refresh()
+    },
+    [member, refresh],
+  )
+
+  const commentOnPost = useCallback(
+    async (postId: string, body: string) => {
+      if (!member) return
+      await addFeedPostComment(postId, member.id, body)
+      await refresh()
+    },
+    [member, refresh],
+  )
+
+  const removePost = useCallback(
+    async (postId: string) => {
+      await deleteFeedPost(postId)
+      await refresh()
+    },
+    [refresh],
   )
 
   const moveEventTime = useCallback(
@@ -342,6 +374,9 @@ export function TripProvider({ children }: { children: ReactNode }) {
       checkIn,
       postAnnouncement,
       postPhoto,
+      likePost,
+      commentOnPost,
+      removePost,
       moveEventTime,
       packItem,
       assignItem,
@@ -364,7 +399,7 @@ export function TripProvider({ children }: { children: ReactNode }) {
     [
       loading, trip, member, members, days, events, checkIns, announcements, feedPosts,
       packingItems, expenses, settings, activeDayId, isOrganizer,
-      refresh, checkIn, postAnnouncement, postPhoto, moveEventTime, packItem, assignItem,
+      refresh, checkIn, postAnnouncement, postPhoto, likePost, commentOnPost, removePost, moveEventTime, packItem, assignItem,
       addItem, addNewExpense, clearExpenses, restoreExpensesList, removeExpense, addNewEvent, editEvent, updateSettings, logout, restoreMembers,
       getEventCheckIns, getMyCheckIn, getDayEvents, getTodayDay, getNextEvent,
     ],

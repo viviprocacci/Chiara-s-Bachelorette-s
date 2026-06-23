@@ -1,5 +1,5 @@
 import { getSupabase, ensureAnonymousAuth, isSupabaseConfigured } from '@/lib/supabase'
-import { PUSH_SUB_KEY } from '@/lib/storage'
+import { PUSH_SUB_KEY, getSession } from '@/lib/storage'
 import {
   demoTrip,
   demoMembers,
@@ -21,6 +21,7 @@ import type {
   EventType,
   Expense,
   FeedPost,
+  FeedPostComment,
   PackingCategory,
   PackingItem,
   SplitType,
@@ -29,6 +30,68 @@ import type {
 } from '@/types'
 
 export { isSupabaseConfigured }
+
+function enrichFeedPosts(
+  posts: FeedPost[],
+  likes: { post_id: string; member_id: string }[],
+  comments: FeedPostComment[],
+  currentMemberId?: string,
+): FeedPost[] {
+  return posts.map((post) => {
+    const postLikes = likes.filter((l) => l.post_id === post.id)
+    const postComments = comments
+      .filter((c) => c.post_id === post.id)
+      .sort((a, b) => a.created_at.localeCompare(b.created_at))
+      .map((c) => ({
+        ...c,
+        author: c.author ?? demoMembers.find((m) => m.id === c.member_id),
+      }))
+    return {
+      ...post,
+      like_count: postLikes.length,
+      liked_by_me: currentMemberId ? postLikes.some((l) => l.member_id === currentMemberId) : false,
+      comments: postComments,
+    }
+  })
+}
+
+async function loadFeedPostsForTrip(tripId: string, currentMemberId?: string): Promise<FeedPost[]> {
+  if (!isSupabaseConfigured) {
+    const state = getDemoState()
+    const posts = state.feedPosts.map((p) => ({
+      ...p,
+      poster: demoMembers.find((m) => m.id === p.posted_by),
+    }))
+    return enrichFeedPosts(posts, state.feedPostLikes ?? [], state.feedPostComments ?? [], currentMemberId)
+  }
+
+  const supabase = getSupabase()
+  const { data: postsRes } = await supabase
+    .from('feed_posts')
+    .select('*, poster:trip_members(*)')
+    .eq('trip_id', tripId)
+    .order('created_at', { ascending: false })
+
+  const posts = (postsRes ?? []) as FeedPost[]
+  const postIds = posts.map((p) => p.id)
+  if (postIds.length === 0) return []
+
+  const [likesRes, commentsRes] = await Promise.all([
+    supabase.from('feed_post_likes').select('post_id, member_id').in('post_id', postIds),
+    supabase
+      .from('feed_post_comments')
+      .select('*, author:trip_members(*)')
+      .in('post_id', postIds)
+      .order('created_at', { ascending: true }),
+  ])
+
+  return enrichFeedPosts(
+    posts,
+    (likesRes.data ?? []) as { post_id: string; member_id: string }[],
+    (commentsRes.data ?? []) as FeedPostComment[],
+    currentMemberId,
+  )
+}
 
 function sortMembersForJoin(members: TripMember[]): TripMember[] {
   return [...members].sort((a, b) => {
@@ -168,6 +231,8 @@ export async function releaseTripMember(memberId: string): Promise<void> {
 }
 
 export async function fetchTripData(tripId: string) {
+  const memberId = getSession()?.memberId
+
   if (!isSupabaseConfigured) {
     const state = getDemoState()
     return {
@@ -179,22 +244,19 @@ export async function fetchTripData(tripId: string) {
       announcements: state.announcements,
       packingItems: state.packingItems,
       expenses: state.expenses ?? [],
-      feedPosts: state.feedPosts.map((p) => ({
-        ...p,
-        poster: demoMembers.find((m) => m.id === p.posted_by),
-      })),
+      feedPosts: await loadFeedPostsForTrip(tripId, memberId),
     }
   }
 
   const supabase = getSupabase()
-  const [tripRes, membersRes, daysRes, announcementsRes, packingRes, expensesRes, feedRes] = await Promise.all([
+  const [tripRes, membersRes, daysRes, announcementsRes, packingRes, expensesRes, feedPosts] = await Promise.all([
     supabase.from('trips').select('*').eq('id', tripId).single(),
     supabase.from('trip_members').select('*').eq('trip_id', tripId),
     supabase.from('days').select('*').eq('trip_id', tripId).order('sort_order'),
     supabase.from('announcements').select('*, creator:trip_members(*)').eq('trip_id', tripId).order('created_at', { ascending: false }),
     supabase.from('packing_items').select('*, assignee:trip_members(*)').eq('trip_id', tripId).order('created_at'),
     supabase.from('expenses').select('*, payer:trip_members(*), splits:expense_splits(*, member:trip_members(*))').eq('trip_id', tripId).order('created_at', { ascending: false }),
-    supabase.from('feed_posts').select('*, poster:trip_members(*)').eq('trip_id', tripId).order('created_at', { ascending: false }),
+    loadFeedPostsForTrip(tripId, memberId),
   ])
 
   const days = (daysRes.data ?? []) as Day[]
@@ -222,7 +284,7 @@ export async function fetchTripData(tripId: string) {
     announcements: (announcementsRes.data ?? []) as Announcement[],
     packingItems: (packingRes.data ?? []) as PackingItem[],
     expenses: (expensesRes.data ?? []) as Expense[],
-    feedPosts: (feedRes.data ?? []) as FeedPost[],
+    feedPosts,
   }
 }
 
@@ -389,6 +451,78 @@ export async function postFeedPhoto(
   const postId = crypto.randomUUID()
   const imageUrl = await uploadFeedPhoto(tripId, imageBlob, postId)
   return createFeedPost(tripId, imageUrl, caption?.trim() || null, postedBy)
+}
+
+export async function toggleFeedPostLike(postId: string, memberId: string): Promise<void> {
+  if (!isSupabaseConfigured) {
+    const state = getDemoState()
+    const idx = state.feedPostLikes.findIndex((l) => l.post_id === postId && l.member_id === memberId)
+    if (idx >= 0) state.feedPostLikes.splice(idx, 1)
+    else state.feedPostLikes.push({ post_id: postId, member_id: memberId })
+    saveDemoState(state)
+    return
+  }
+
+  await ensureAnonymousAuth()
+  const supabase = getSupabase()
+  const { data: existing } = await supabase
+    .from('feed_post_likes')
+    .select('post_id')
+    .eq('post_id', postId)
+    .eq('member_id', memberId)
+    .maybeSingle()
+
+  if (existing) {
+    const { error } = await supabase.from('feed_post_likes').delete().eq('post_id', postId).eq('member_id', memberId)
+    if (error) throw error
+  } else {
+    const { error } = await supabase.from('feed_post_likes').insert({ post_id: postId, member_id: memberId })
+    if (error) throw error
+  }
+}
+
+export async function addFeedPostComment(postId: string, memberId: string, body: string): Promise<void> {
+  const trimmed = body.trim()
+  if (!trimmed) return
+
+  if (!isSupabaseConfigured) {
+    const state = getDemoState()
+    state.feedPostComments.push({
+      id: `fc-${Date.now()}`,
+      post_id: postId,
+      member_id: memberId,
+      body: trimmed,
+      created_at: new Date().toISOString(),
+      author: demoMembers.find((m) => m.id === memberId),
+    })
+    saveDemoState(state)
+    return
+  }
+
+  await ensureAnonymousAuth()
+  const supabase = getSupabase()
+  const { error } = await supabase.from('feed_post_comments').insert({
+    post_id: postId,
+    member_id: memberId,
+    body: trimmed,
+  })
+  if (error) throw error
+}
+
+export async function deleteFeedPost(postId: string): Promise<void> {
+  if (!isSupabaseConfigured) {
+    const state = getDemoState()
+    state.feedPosts = state.feedPosts.filter((p) => p.id !== postId)
+    state.feedPostLikes = state.feedPostLikes.filter((l) => l.post_id !== postId)
+    state.feedPostComments = state.feedPostComments.filter((c) => c.post_id !== postId)
+    saveDemoState(state)
+    return
+  }
+
+  await ensureAnonymousAuth()
+  const supabase = getSupabase()
+  const { error } = await supabase.from('feed_posts').delete().eq('id', postId)
+  if (error) throw error
 }
 
 export async function updateEventTime(
@@ -665,6 +799,8 @@ export function subscribeToTripChanges(tripId: string, onChange: () => void) {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'check_ins' }, onChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements', filter: `trip_id=eq.${tripId}` }, onChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'feed_posts', filter: `trip_id=eq.${tripId}` }, onChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'feed_post_likes' }, onChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'feed_post_comments' }, onChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, onChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'packing_items', filter: `trip_id=eq.${tripId}` }, onChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses', filter: `trip_id=eq.${tripId}` }, onChange)

@@ -11,6 +11,7 @@ import type {
   Expense,
 
   FeedPost,
+  FeedPostComment,
 
   PackingItem,
 
@@ -171,6 +172,8 @@ export function getDemoState() {
         events: Event[]
 
         feedPosts?: FeedPost[]
+        feedPostLikes?: { post_id: string; member_id: string }[]
+        feedPostComments?: FeedPostComment[]
 
       }
 
@@ -179,6 +182,8 @@ export function getDemoState() {
         ...parsed,
 
         feedPosts: parsed.feedPosts ?? [],
+        feedPostLikes: parsed.feedPostLikes ?? [],
+        feedPostComments: parsed.feedPostComments ?? [],
 
         expenses: parsed.expenses ?? [],
 
@@ -205,6 +210,8 @@ export function getDemoState() {
     events: [...demoEvents],
 
     feedPosts: [] as FeedPost[],
+    feedPostLikes: [] as { post_id: string; member_id: string }[],
+    feedPostComments: [] as FeedPostComment[],
 
   }
 

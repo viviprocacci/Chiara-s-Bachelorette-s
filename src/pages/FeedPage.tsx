@@ -13,7 +13,7 @@ export default function FeedPage() {
 
   return (
     <div className="page-container">
-      <PageHeader title="The Feed" subtitle="Share the magic — double-tap to sparkle" />
+      <PageHeader title="The Feed" subtitle="Like, comment, and share from your camera roll" />
 
       <div className="scroll-content space-y-4">
         <PostComposer onPost={postPhoto} />
