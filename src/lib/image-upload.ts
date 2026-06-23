@@ -2,20 +2,54 @@ const MAX_WIDTH = 1200
 const JPEG_QUALITY = 0.82
 const MAX_BYTES = 800_000
 
+async function loadImageSource(file: File): Promise<{ source: CanvasImageSource; width: number; height: number; cleanup: () => void }> {
+  try {
+    const bitmap = await createImageBitmap(file)
+    return {
+      source: bitmap,
+      width: bitmap.width,
+      height: bitmap.height,
+      cleanup: () => bitmap.close(),
+    }
+  } catch {
+    const objectUrl = URL.createObjectURL(file)
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image()
+        image.onload = () => resolve(image)
+        image.onerror = () => reject(new Error('Could not load image'))
+        image.src = objectUrl
+      })
+      return {
+        source: img,
+        width: img.naturalWidth,
+        height: img.naturalHeight,
+        cleanup: () => URL.revokeObjectURL(objectUrl),
+      }
+    } catch (err) {
+      URL.revokeObjectURL(objectUrl)
+      throw err
+    }
+  }
+}
+
 export async function compressImageForUpload(file: File): Promise<Blob> {
-  const bitmap = await createImageBitmap(file)
-  const scale = Math.min(1, MAX_WIDTH / bitmap.width)
-  const width = Math.round(bitmap.width * scale)
-  const height = Math.round(bitmap.height * scale)
+  const { source, width: sourceWidth, height: sourceHeight, cleanup } = await loadImageSource(file)
+  const scale = Math.min(1, MAX_WIDTH / sourceWidth)
+  const width = Math.round(sourceWidth * scale)
+  const height = Math.round(sourceHeight * scale)
 
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
   const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('Could not process image')
+  if (!ctx) {
+    cleanup()
+    throw new Error('Could not process image')
+  }
 
-  ctx.drawImage(bitmap, 0, 0, width, height)
-  bitmap.close()
+  ctx.drawImage(source, 0, 0, width, height)
+  cleanup()
 
   let quality = JPEG_QUALITY
   let blob = await canvasToBlob(canvas, quality)

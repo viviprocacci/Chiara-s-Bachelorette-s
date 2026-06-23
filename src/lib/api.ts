@@ -68,7 +68,7 @@ async function loadFeedPostsForTrip(tripId: string, currentMemberId?: string): P
   const supabase = getSupabase()
   const { data: postsRes } = await supabase
     .from('feed_posts')
-    .select('*, poster:trip_members(*)')
+    .select('*, poster:trip_members!posted_by(*)')
     .eq('trip_id', tripId)
     .order('created_at', { ascending: false })
 
@@ -80,7 +80,7 @@ async function loadFeedPostsForTrip(tripId: string, currentMemberId?: string): P
     supabase.from('feed_post_likes').select('post_id, member_id').in('post_id', postIds),
     supabase
       .from('feed_post_comments')
-      .select('*, author:trip_members(*)')
+      .select('*, author:trip_members!member_id(*)')
       .in('post_id', postIds)
       .order('created_at', { ascending: true }),
   ])
@@ -218,6 +218,27 @@ export async function joinTrip(
     .single()
 
   if (error) throw error
+
+  const { data: claimed, error: claimError } = await supabase.rpc('claim_trip_member', {
+    p_member_id: data.id,
+  })
+  if (claimError) throw claimError
+  return (claimed ?? data) as TripMember
+}
+
+/** Re-attach this device's auth session to a guest name (required for RLS). */
+export async function ensureMemberSession(memberId: string): Promise<TripMember> {
+  if (!isSupabaseConfigured) {
+    const member = demoMembers.find((m) => m.id === memberId)
+    if (!member) throw new Error('Not joined to the trip')
+    return member
+  }
+
+  await ensureAnonymousAuth()
+  const supabase = getSupabase()
+  const { data, error } = await supabase.rpc('claim_trip_member', { p_member_id: memberId })
+  if (error) throw error
+  if (!data) throw new Error('Could not verify your guest name — try joining again from Settings')
   return data as TripMember
 }
 
@@ -409,11 +430,12 @@ export async function createFeedPost(
     return post
   }
 
+  await ensureAnonymousAuth()
   const supabase = getSupabase()
   const { data, error } = await supabase
     .from('feed_posts')
     .insert({ trip_id: tripId, image_url: imageUrl, caption, posted_by: postedBy })
-    .select('*, poster:trip_members(*)')
+    .select('*, poster:trip_members!posted_by(*)')
     .single()
 
   if (error) throw error
@@ -425,6 +447,7 @@ export async function uploadFeedPhoto(tripId: string, blob: Blob, postId: string
     throw new Error('Use data URL in demo mode')
   }
 
+  await ensureAnonymousAuth()
   const supabase = getSupabase()
   const path = `${tripId}/${postId}.jpg`
   const { error: uploadError } = await supabase.storage
@@ -448,9 +471,20 @@ export async function postFeedPhoto(
     return createFeedPost(tripId, dataUrl, caption?.trim() || null, postedBy)
   }
 
+  const member = await ensureMemberSession(postedBy)
   const postId = crypto.randomUUID()
-  const imageUrl = await uploadFeedPhoto(tripId, imageBlob, postId)
-  return createFeedPost(tripId, imageUrl, caption?.trim() || null, postedBy)
+  let imageUrl: string
+  try {
+    imageUrl = await uploadFeedPhoto(tripId, imageBlob, postId)
+  } catch (uploadErr) {
+    const uploadMsg = uploadErr instanceof Error ? uploadErr.message : String(uploadErr)
+    if (/row-level security/i.test(uploadMsg)) {
+      imageUrl = dataUrl
+    } else {
+      throw uploadErr
+    }
+  }
+  return createFeedPost(tripId, imageUrl, caption?.trim() || null, member.id)
 }
 
 export async function toggleFeedPostLike(postId: string, memberId: string): Promise<void> {

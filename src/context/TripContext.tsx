@@ -34,6 +34,7 @@ import {
   isSupabaseConfigured,
   restoreTripMembers,
   releaseTripMember,
+  ensureMemberSession,
   toggleFeedPostLike,
   addFeedPostComment,
   deleteFeedPost,
@@ -119,7 +120,14 @@ export function TripProvider({ children }: { children: ReactNode }) {
       setFeedPosts(data.feedPosts)
       setPackingItems(data.packingItems)
       setExpenses(data.expenses)
-      const me = data.members.find((m) => m.id === session.memberId) ?? null
+      let me = data.members.find((m) => m.id === session.memberId) ?? null
+      if (session.memberId && isSupabaseConfigured) {
+        try {
+          me = await ensureMemberSession(session.memberId)
+        } catch {
+          // Keep cached member for read-only UI; writes will re-sync or fail clearly.
+        }
+      }
       setMember(me)
       if (!activeDayId && data.days.length > 0) {
         const today = data.days.find((d) => d.date === new Date().toISOString().split('T')[0])
@@ -171,7 +179,7 @@ export function TripProvider({ children }: { children: ReactNode }) {
 
   const postPhoto = useCallback(
     async (file: File, caption: string) => {
-      if (!member || !trip) return
+      if (!member || !trip) throw new Error('Not joined to the trip')
       const { blob, dataUrl } = await prepareImageForUpload(file)
       await postFeedPhoto(trip.id, member.id, blob, dataUrl, caption || null)
       await refresh()

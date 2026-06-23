@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { ImagePlus, Loader2, Images } from 'lucide-react'
 import { prepareImageForUpload } from '@/lib/image-upload'
@@ -7,7 +7,13 @@ interface PostComposerProps {
   onPost: (file: File, caption: string) => Promise<void>
 }
 
+function isLikelyImage(file: File) {
+  if (file.type.startsWith('image/')) return true
+  return /\.(jpe?g|png|gif|webp|heic|heif|bmp|avif)$/i.test(file.name)
+}
+
 export default function PostComposer({ onPost }: PostComposerProps) {
+  const inputId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -16,7 +22,7 @@ export default function PostComposer({ onPost }: PostComposerProps) {
   const [error, setError] = useState('')
 
   const handleFile = async (file: File) => {
-    if (!file.type.startsWith('image/')) {
+    if (!isLikelyImage(file)) {
       setError('Please choose a photo')
       return
     }
@@ -41,8 +47,8 @@ export default function PostComposer({ onPost }: PostComposerProps) {
       setSelectedFile(null)
       setCaption('')
       if (inputRef.current) inputRef.current.value = ''
-    } catch {
-      setError('Failed to post — try again')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to post — try again')
     } finally {
       setPosting(false)
     }
@@ -57,10 +63,11 @@ export default function PostComposer({ onPost }: PostComposerProps) {
   return (
     <form onSubmit={(e) => void handleSubmit(e)} className="glass-card space-y-3 p-4">
       <input
+        id={inputId}
         ref={inputRef}
         type="file"
         accept="image/*"
-        className="hidden"
+        className="sr-only"
         onChange={(e) => {
           const file = e.target.files?.[0]
           if (file) void handleFile(file)
@@ -68,14 +75,13 @@ export default function PostComposer({ onPost }: PostComposerProps) {
       />
 
       {!preview ? (
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[var(--palette-accent-light)] bg-white/30 py-8 text-sm font-medium text-[var(--palette-text-muted)] transition-colors hover:border-[var(--palette-accent)] hover:text-[var(--palette-accent)]"
+        <label
+          htmlFor={inputId}
+          className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[var(--palette-accent-light)] bg-white/30 py-8 text-sm font-medium text-[var(--palette-text-muted)] transition-colors hover:border-[var(--palette-accent)] hover:text-[var(--palette-accent)]"
         >
           <Images size={22} />
           Choose from camera roll
-        </button>
+        </label>
       ) : (
         <div className="space-y-3">
           <div className="relative overflow-hidden rounded-xl">
