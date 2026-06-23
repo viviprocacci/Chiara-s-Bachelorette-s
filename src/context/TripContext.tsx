@@ -33,6 +33,7 @@ import {
   updateEvent,
   isSupabaseConfigured,
   restoreTripMembers,
+  releaseTripMember,
 } from '@/lib/api'
 import { applyPalette, getPalette } from '@/theme/palettes'
 import { prepareImageForUpload } from '@/lib/image-upload'
@@ -266,9 +267,19 @@ export function TripProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const logout = useCallback(() => {
-    clearSession()
-    window.location.href = '/join'
-  }, [])
+    const memberId = member?.id
+    void (async () => {
+      if (memberId) {
+        try {
+          await releaseTripMember(memberId)
+        } catch {
+          // still leave even if release fails
+        }
+      }
+      clearSession()
+      window.location.href = '/join'
+    })()
+  }, [member?.id])
 
   const restoreMembers = useCallback(async () => {
     if (!trip) return

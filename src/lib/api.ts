@@ -71,7 +71,7 @@ export async function validateInvite(code: string, pin?: string): Promise<Trip |
 
 export async function getAvailableMembers(tripId: string): Promise<TripMember[]> {
   if (!isSupabaseConfigured) {
-    return demoMembers.filter((m) => !m.auth_uid || m.auth_uid === 'demo-user' || m.auth_uid === '')
+    return demoMembers
   }
 
   const supabase = getSupabase()
@@ -162,6 +162,15 @@ export async function joinTrip(
 
   if (error) throw error
   return data as TripMember
+}
+
+export async function releaseTripMember(memberId: string): Promise<void> {
+  if (!isSupabaseConfigured) return
+
+  await ensureAnonymousAuth()
+  const supabase = getSupabase()
+  const { error } = await supabase.rpc('release_trip_member', { p_member_id: memberId })
+  if (error) throw error
 }
 
 export async function fetchTripData(tripId: string) {

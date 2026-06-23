@@ -63,7 +63,7 @@ export default function JoinPage() {
         setStep('pin')
       } else {
         const available = await getAvailableMembers(result.id)
-        setMembers(available.filter((m) => !m.auth_uid))
+        setMembers(available)
         setStep('name')
       }
     } finally {
@@ -83,7 +83,7 @@ export default function JoinPage() {
       }
       setTrip(result)
       const available = await getAvailableMembers(result.id)
-      setMembers(available.filter((m) => !m.auth_uid || m.auth_uid === 'demo-user'))
+      setMembers(available)
       setStep('name')
     } finally {
       setLoading(false)
@@ -201,7 +201,7 @@ export default function JoinPage() {
               </p>
               {members.length === 0 ? (
                 <p className="text-center text-sm text-[var(--palette-text-muted)]">
-                  No names available right now — ask Chiara to tap Settings → Restore names, or run{' '}
+                  No names on the guest list yet — ask Chiara to tap Settings → Restore names, or run{' '}
                   <code className="text-xs">008_restore_members.sql</code> in Supabase.
                 </p>
               ) : (
