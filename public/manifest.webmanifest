@@ -1,0 +1,25 @@
+{
+  "name": "Chiara's Bachelorette",
+  "short_name": "Chiara Bach",
+  "description": "Your bachelorette weekend itinerary & coordination hub",
+  "theme_color": "#FDF6F4",
+  "background_color": "#FDF6F4",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/",
+  "start_url": "/",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

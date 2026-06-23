@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --palette-bg: #FDF6F4;
+  --palette-bg-secondary: #FCE8E4;
+  --palette-accent: #E8A0BF;
+  --palette-accent-light: #F5D0CB;
+  --palette-text: #3D2C2A;
+  --palette-text-muted: #8B706C;
+  --palette-gradient: linear-gradient(135deg, #FDF6F4 0%, #FCE8E4 50%, #F5D0CB 100%);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background: var(--palette-bg);
+  color: var(--palette-text);
+  overscroll-behavior: none;
+}
+
+@layer components {
+  .glass-card {
+    @apply rounded-2xl border border-white/60 bg-white/50 backdrop-blur-md shadow-sm;
+  }
+
+  .btn-primary {
+    @apply rounded-xl px-5 py-3 font-medium text-white transition-all active:scale-95;
+    background: var(--palette-accent);
+  }
+
+  .btn-secondary {
+    @apply rounded-xl border border-white/60 bg-white/40 px-5 py-3 font-medium backdrop-blur-sm transition-all active:scale-95;
+    color: var(--palette-text);
+  }
+
+  .page-container {
+    @apply flex h-full flex-col overflow-hidden;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+  }
+
+  .scroll-content {
+    @apply flex-1 overflow-y-auto overscroll-contain px-4 pb-4;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
