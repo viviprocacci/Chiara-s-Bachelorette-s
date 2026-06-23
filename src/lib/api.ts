@@ -30,6 +30,14 @@ import type {
 
 export { isSupabaseConfigured }
 
+function sortMembersForJoin(members: TripMember[]): TripMember[] {
+  return [...members].sort((a, b) => {
+    if (a.role === 'organizer' && b.role !== 'organizer') return -1
+    if (b.role === 'organizer' && a.role !== 'organizer') return 1
+    return a.display_name.localeCompare(b.display_name)
+  })
+}
+
 export async function validateInvite(code: string, pin?: string): Promise<Trip | null> {
   const normalizedCode = code.trim().toUpperCase()
 
@@ -58,7 +66,7 @@ export async function validateInvite(code: string, pin?: string): Promise<Trip |
 
 export async function getAvailableMembers(tripId: string): Promise<TripMember[]> {
   if (!isSupabaseConfigured) {
-    return demoMembers
+    return sortMembersForJoin(demoMembers)
   }
 
   const supabase = getSupabase()
@@ -66,9 +74,8 @@ export async function getAvailableMembers(tripId: string): Promise<TripMember[]>
     .from('trip_members')
     .select('*')
     .eq('trip_id', tripId)
-    .order('display_name')
 
-  return (data ?? []) as TripMember[]
+  return sortMembersForJoin((data ?? []) as TripMember[])
 }
 
 export async function restoreTripMembers(tripId: string, preserveMemberId?: string): Promise<void> {
@@ -126,16 +133,9 @@ export async function joinTrip(
   if (!user) throw new Error('Not authenticated — enable Anonymous sign-ins in Supabase Auth')
 
   if (existingMemberId) {
-    // #region agent log
-    const { data: memberBefore } = await supabase.from('trip_members').select('id,display_name,auth_uid').eq('id', existingMemberId).single()
-    fetch('http://127.0.0.1:7665/ingest/7d8e6a41-7867-481a-a27d-c49f0652dcbc',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1772e3'},body:JSON.stringify({sessionId:'1772e3',location:'api.ts:joinTrip:pre-claim',message:'claim attempt',data:{existingMemberId,displayName,userId:user.id,memberAuthUid:memberBefore?.auth_uid??null,memberName:memberBefore?.display_name??null},timestamp:Date.now(),hypothesisId:'H1-H3'})}).catch(()=>{});
-    // #endregion
     const { data, error } = await supabase.rpc('claim_trip_member', {
       p_member_id: existingMemberId,
     })
-    // #region agent log
-    fetch('http://127.0.0.1:7665/ingest/7d8e6a41-7867-481a-a27d-c49f0652dcbc',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1772e3'},body:JSON.stringify({sessionId:'1772e3',runId:'post-fix',location:'api.ts:joinTrip:post-claim',message:'claim result',data:{existingMemberId,hasData:!!data,errorMsg:error?.message??null,errorCode:error?.code??null,memberId:data?.id??null},timestamp:Date.now(),hypothesisId:'H1-verify'})}).catch(()=>{});
-    // #endregion
     if (error) throw error
     if (!data) throw new Error('Could not claim that name — try another')
     return data as TripMember

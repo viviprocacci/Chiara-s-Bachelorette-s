@@ -223,6 +223,9 @@ export default function JoinPage() {
                       {m.display_name[0]}
                     </span>
                     {m.display_name}
+                    {m.role === 'organizer' && (
+                      <span className="ml-1 text-[10px] font-normal text-[var(--palette-accent)]">✦ bride</span>
+                    )}
                   </motion.button>
                 ))}
               </div>
