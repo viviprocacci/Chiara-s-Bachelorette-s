@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { validateInvite, getAvailableMembers, joinTrip, isSupabaseConfigured } from '@/lib/api'
 import { setSession, getSession } from '@/lib/storage'
-import { DEMO_INVITE_CODE, DEMO_PIN } from '@/lib/demo-data'
+import { DEMO_INVITE_CODE, DEMO_PIN, TEST_INVITE_CODE, TEST_PIN } from '@/lib/demo-data'
 import type { Trip, TripMember } from '@/types'
 
 function joinErrorMessage(err: unknown): string {
@@ -140,7 +140,8 @@ export default function JoinPage() {
 
         {!isSupabaseConfigured && (
           <div className="mb-4 rounded-xl border border-amber-200/60 bg-amber-50/60 px-4 py-3 text-xs text-amber-800">
-            Demo mode — use code <strong>{DEMO_INVITE_CODE}</strong> and PIN <strong>{DEMO_PIN}</strong>
+            Demo mode — party code <strong>{DEMO_INVITE_CODE}</strong> / PIN <strong>{DEMO_PIN}</strong>
+            {' · '}test code <strong>{TEST_INVITE_CODE}</strong> / PIN <strong>{TEST_PIN}</strong>
           </div>
         )}
 
@@ -198,6 +199,12 @@ export default function JoinPage() {
               <p className="mb-4 text-center text-sm font-medium text-[var(--palette-text-muted)]">
                 Who's joining the party?
               </p>
+              {members.length === 0 ? (
+                <p className="text-center text-sm text-[var(--palette-text-muted)]">
+                  No names available right now — ask Chiara to tap Settings → Restore names, or run{' '}
+                  <code className="text-xs">008_restore_members.sql</code> in Supabase.
+                </p>
+              ) : (
               <div className="grid grid-cols-2 gap-2">
                 {members.map((m) => (
                   <motion.button
@@ -220,6 +227,7 @@ export default function JoinPage() {
                   </motion.button>
                 ))}
               </div>
+              )}
             </div>
             {error && <p className="text-center text-sm text-red-500">{error}</p>}
             <button

@@ -1,15 +1,16 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Bell, Volume2, Smartphone, Sparkles, LogOut, Zap, BookOpen } from 'lucide-react'
+import { Bell, Volume2, Smartphone, Sparkles, LogOut, Zap, BookOpen, Users } from 'lucide-react'
 import { useTrip } from '@/context/TripContext'
 import { useOnboarding } from '@/components/layout/OnboardingOverlay'
 import PageHeader from '@/components/layout/PageHeader'
 import { requestPushNotifications } from '@/lib/api'
 
 export default function SettingsPage() {
-  const { settings, updateSettings, logout, isDemo } = useTrip()
+  const { settings, updateSettings, logout, isDemo, isOrganizer, restoreMembers } = useTrip()
   const { showOnboarding } = useOnboarding()
   const [pushStatus, setPushStatus] = useState<string | null>(null)
+  const [restoreStatus, setRestoreStatus] = useState<string | null>(null)
 
   const toggles = [
     {
@@ -37,6 +38,17 @@ export default function SettingsPage() {
     updateSettings({ notificationsEnabled: granted })
     setPushStatus(granted ? 'Notifications enabled!' : 'Could not enable notifications')
     setTimeout(() => setPushStatus(null), 3000)
+  }
+
+  const handleRestoreMembers = async () => {
+    setRestoreStatus(null)
+    try {
+      await restoreMembers()
+      setRestoreStatus('Guest list restored — everyone can pick their name again on join')
+    } catch {
+      setRestoreStatus('Could not restore — run migration 008_restore_members.sql in Supabase')
+    }
+    setTimeout(() => setRestoreStatus(null), 4000)
   }
 
   return (
@@ -131,6 +143,35 @@ export default function SettingsPage() {
             Start tour
           </button>
         </div>
+
+        {isOrganizer && !isDemo && (
+          <div className="glass-card p-4">
+            <div className="flex items-center gap-4">
+              <div
+                className="flex h-10 w-10 items-center justify-center rounded-xl"
+                style={{ background: 'var(--palette-accent-light)', color: 'var(--palette-accent)' }}
+              >
+                <Users size={18} />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium">Restore guest list</p>
+                <p className="text-[10px] text-[var(--palette-text-muted)]">
+                  Bring back all 9 names if the join screen is empty
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleRestoreMembers()}
+              className="btn-secondary mt-3 w-full text-sm"
+            >
+              Restore names
+            </button>
+            {restoreStatus && (
+              <p className="mt-2 text-center text-xs text-[var(--palette-accent)]">{restoreStatus}</p>
+            )}
+          </div>
+        )}
 
         <div className="glass-card p-4 text-center">
           <Sparkles size={24} className="mx-auto text-[var(--palette-accent)]" />

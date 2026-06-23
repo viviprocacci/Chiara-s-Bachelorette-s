@@ -45,6 +45,7 @@ function getSteps(isBride: boolean): OnboardingStep[] {
 
 type OnboardingContextValue = {
   showOnboarding: () => void
+  onboardingVisible: boolean
 }
 
 const OnboardingContext = createContext<OnboardingContextValue | null>(null)
@@ -162,7 +163,7 @@ export default function OnboardingProvider({ children }: { children: ReactNode }
   const hideOnboarding = useCallback(() => setShow(false), [])
 
   return (
-    <OnboardingContext.Provider value={{ showOnboarding }}>
+    <OnboardingContext.Provider value={{ showOnboarding, onboardingVisible: show }}>
       {children}
       <AnimatePresence>
         {show && member && <OnboardingOverlay onFinish={hideOnboarding} />}

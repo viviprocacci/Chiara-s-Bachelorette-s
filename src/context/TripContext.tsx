@@ -32,6 +32,7 @@ import {
   createEvent,
   updateEvent,
   isSupabaseConfigured,
+  restoreTripMembers,
 } from '@/lib/api'
 import { applyPalette, getPalette } from '@/theme/palettes'
 import { prepareImageForUpload } from '@/lib/image-upload'
@@ -69,6 +70,7 @@ interface TripContextValue {
   editEvent: (eventId: string, updates: Partial<Event>) => Promise<void>
   updateSettings: (updates: Partial<AppSettings>) => void
   logout: () => void
+  restoreMembers: () => Promise<void>
   getEventCheckIns: (eventId: string) => CheckIn[]
   getMyCheckIn: (eventId: string) => CheckIn | undefined
   getDayEvents: (dayId: string) => Event[]
@@ -268,6 +270,12 @@ export function TripProvider({ children }: { children: ReactNode }) {
     window.location.href = '/join'
   }, [])
 
+  const restoreMembers = useCallback(async () => {
+    if (!trip) return
+    await restoreTripMembers(trip.id, member?.id)
+    await refresh()
+  }, [trip, member?.id, refresh])
+
   const getEventCheckIns = useCallback(
     (eventId: string) => checkIns.filter((c) => c.event_id === eventId),
     [checkIns],
@@ -335,6 +343,7 @@ export function TripProvider({ children }: { children: ReactNode }) {
       editEvent,
       updateSettings,
       logout,
+      restoreMembers,
       getEventCheckIns,
       getMyCheckIn,
       getDayEvents,
@@ -345,7 +354,7 @@ export function TripProvider({ children }: { children: ReactNode }) {
       loading, trip, member, members, days, events, checkIns, announcements, feedPosts,
       packingItems, expenses, settings, activeDayId, isOrganizer,
       refresh, checkIn, postAnnouncement, postPhoto, moveEventTime, packItem, assignItem,
-      addItem, addNewExpense, clearExpenses, restoreExpensesList, removeExpense, addNewEvent, editEvent, updateSettings, logout,
+      addItem, addNewExpense, clearExpenses, restoreExpensesList, removeExpense, addNewEvent, editEvent, updateSettings, logout, restoreMembers,
       getEventCheckIns, getMyCheckIn, getDayEvents, getTodayDay, getNextEvent,
     ],
   )

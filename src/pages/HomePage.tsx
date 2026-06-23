@@ -1,10 +1,9 @@
 import { Link } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { ChevronRight, Sparkles } from 'lucide-react'
 import { useTrip } from '@/context/TripContext'
 import PageHeader from '@/components/layout/PageHeader'
 import EventCard from '@/components/schedule/EventCard'
-import InstallPrompt, { useInstallPrompt } from '@/components/layout/InstallPrompt'
 import { formatTime, timeUntil, formatDate } from '@/lib/storage'
 
 export default function HomePage() {
@@ -20,7 +19,6 @@ export default function HomePage() {
     announcements,
     settings,
   } = useTrip()
-  const { show, dismiss } = useInstallPrompt()
   const today = getTodayDay()
   const nextEvent = getNextEvent()
   const todayEvents = today ? getDayEvents(today.id) : []
@@ -140,10 +138,6 @@ export default function HomePage() {
           </div>
         </div>
       </div>
-
-      <AnimatePresence>
-        {show && <InstallPrompt onDismiss={dismiss} />}
-      </AnimatePresence>
     </div>
   )
 }

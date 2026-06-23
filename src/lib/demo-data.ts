@@ -26,6 +26,10 @@ export const DEMO_INVITE_CODE = 'CHIARA710'
 
 export const DEMO_PIN = '2626'
 
+export const TEST_INVITE_CODE = 'APPSTEST'
+
+export const TEST_PIN = '1234'
+
 export const DEMO_STATE_KEY = 'chiara_bach_demo_state_v3'
 
 
@@ -71,6 +75,8 @@ export const demoMembers: TripMember[] = [
   { id: 'm8', trip_id: demoTrip.id, auth_uid: '', display_name: 'Makayla', role: 'guest', avatar_color: '#F5C6D0', created_at: new Date().toISOString() },
 
   { id: 'm9', trip_id: demoTrip.id, auth_uid: '', display_name: 'Liz', role: 'guest', avatar_color: '#A8E0EE', created_at: new Date().toISOString() },
+
+  { id: 'm10', trip_id: demoTrip.id, auth_uid: '', display_name: 'Apps Test', role: 'guest', avatar_color: '#9CAF88', created_at: new Date().toISOString() },
 
 ]
 

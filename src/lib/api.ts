@@ -8,6 +8,8 @@ import {
   saveDemoState,
   DEMO_INVITE_CODE,
   DEMO_PIN,
+  TEST_INVITE_CODE,
+  TEST_PIN,
   DEMO_STATE_KEY,
 } from '@/lib/demo-data'
 import { AVATAR_COLORS } from '@/theme/palettes'
@@ -32,9 +34,15 @@ export { isSupabaseConfigured }
 
 export async function validateInvite(code: string, pin?: string): Promise<Trip | null> {
   const normalizedCode = code.trim().toUpperCase()
+  const isTestInvite = normalizedCode === TEST_INVITE_CODE
+  const lookupCode = isTestInvite ? DEMO_INVITE_CODE : normalizedCode
 
   if (!isSupabaseConfigured) {
-    if (normalizedCode === DEMO_INVITE_CODE && (!pin || pin === DEMO_PIN)) {
+    if (isTestInvite) {
+      if (pin != null && pin !== '' && pin.trim() !== TEST_PIN) return null
+      return { ...demoTrip, pin_hash: TEST_PIN }
+    }
+    if (lookupCode === DEMO_INVITE_CODE && (!pin || pin === DEMO_PIN)) {
       return demoTrip
     }
     return null
@@ -44,10 +52,15 @@ export async function validateInvite(code: string, pin?: string): Promise<Trip |
   const { data, error } = await supabase
     .from('trips')
     .select('*')
-    .eq('invite_code', normalizedCode)
+    .eq('invite_code', lookupCode)
     .single()
 
   if (error || !data) return null
+
+  if (isTestInvite) {
+    if (pin != null && pin !== '' && pin.trim() !== TEST_PIN) return null
+    return { ...(data as Trip), pin_hash: TEST_PIN }
+  }
 
   if (pin != null && pin !== '' && data.pin_hash && data.pin_hash !== pin.trim()) {
     return null
@@ -69,6 +82,43 @@ export async function getAvailableMembers(tripId: string): Promise<TripMember[]>
     .order('display_name')
 
   return (data ?? []) as TripMember[]
+}
+
+export async function restoreTripMembers(tripId: string, preserveMemberId?: string): Promise<void> {
+  if (!isSupabaseConfigured) return
+
+  await ensureAnonymousAuth()
+  const supabase = getSupabase()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  const { error: rpcError } = await supabase.rpc('restore_trip_members', {
+    p_trip_id: tripId,
+    p_preserve_member_id: preserveMemberId ?? null,
+  })
+  if (!rpcError) return
+  if (!/function|42883|schema cache/i.test(rpcError.message)) throw rpcError
+
+  for (const m of demoMembers) {
+    const { error } = await supabase.from('trip_members').upsert(
+      {
+        trip_id: tripId,
+        display_name: m.display_name,
+        role: m.role,
+        avatar_color: m.avatar_color,
+        auth_uid: null,
+      },
+      { onConflict: 'trip_id,display_name' },
+    )
+    if (error) throw error
+  }
+
+  if (preserveMemberId && user) {
+    const { error } = await supabase
+      .from('trip_members')
+      .update({ auth_uid: user.id })
+      .eq('id', preserveMemberId)
+    if (error) throw error
+  }
 }
 
 export async function joinTrip(
